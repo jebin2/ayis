@@ -28,7 +28,7 @@ type Env struct {
 // Defaults are the registry's defaults for the settings the ported commands
 // read. The full registry arrives with `ayis config`.
 var Defaults = map[string]string{
-	"GAME_REGION":        "ap-south-2",
+	"GAME_REGION":        "ap-south-1",
 	"GAME_INSTANCE_TYPE": "g6.xlarge",
 	"GAME_TS_HOST":       "ayis",
 }

@@ -29,7 +29,7 @@ var Registry = []Setting{
 	{"GAME_DISK_RESERVE_GB", "number", "20", "0", "Space kept free on the game disk for Steam's downloads, updates and shader caches.", "game disk kept free (GB)", "The box"},
 	{"GAME_ARCHIVE_EXPIRY_DAYS", "number", "14", "0", "Days with no box before the cloud watchdog deletes the archive, and days an on-demand box may stay stopped before it is deleted (its games kept). 0 keeps both forever.", "archive expiry (days)", "The guards"},
 	{"GAME_INSTANCE_TYPE", "text", "g6.xlarge", "", "The EC2 instance type. Its GPU quota must cover it.", "instance type", "The box"},
-	{"GAME_REGION", "region", "ap-south-2", "", "The AWS region everything lives in. Changing it starts over: the archive does not follow.", "region", "The box"},
+	{"GAME_REGION", "region", "ap-south-1", "", "The AWS region everything lives in. Changing it starts over: the archive does not follow.", "region", "The box"},
 	{"GAME_SPOT", "choice", "auto", "auto,1,0", "Purchase model: spot, on demand, or spot whenever the quota allows.", "purchase model", "The box"},
 	{"GAME_STEAM_LOGIN", "choice", "use", "use,fresh", "Whether a new box restores the archived Steam login, or asks you to sign in.", "Steam sign-in", "The box"},
 	{"GAME_BUDGET_INR", "number", "5000", "100", "Monthly budget. It emails you; it stops nothing.", "monthly budget (INR)", "The guards"},

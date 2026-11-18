@@ -325,12 +325,12 @@ func newRig(t *testing.T) *rig {
 	rg.i = &Init{
 		Out: out, Env: env, R: r,
 		Preflight: func(context.Context) (check.Result, int) {
-			return check.Result{Type: "g6.xlarge", Region: "ap-south-2", VCPUs: 4, Spot: false, AuthKey: "tskey-auth-xxxxxxxxxxxxxxxx"}, 0
+			return check.Result{Type: "g6.xlarge", Region: "ap-south-1", VCPUs: 4, Spot: false, AuthKey: "tskey-auth-xxxxxxxxxxxxxxxx"}, 0
 		},
 		Lib: func(b string) provision.Library {
-			return provision.Library{S3: s3ok{}, IAM: iamok{}, Account: "123456789012", Host: "ayis", Region: "ap-south-2", Named: b, Sleep: func(time.Duration) {}}
+			return provision.Library{S3: s3ok{}, IAM: iamok{}, Account: "123456789012", Host: "ayis", Region: "ap-south-1", Named: b, Sleep: func(time.Duration) {}}
 		},
-		BucketRegion: func(context.Context, string) (string, error) { return "ap-south-2", nil },
+		BucketRegion: func(context.Context, string) (string, error) { return "ap-south-1", nil },
 		Provisioner:  provision.Provisioner{EC2: a, SSM: ssmok{}, Up: rg.up, Src: ayis.Files, Now: func() time.Time { return time.Date(2026, 10, 25, 9, 8, 7, 0, time.UTC) }, Sleep: func(time.Duration) {}},
 		Budget: func(inr float64) provision.Budget {
 			return provision.Budget{C: rg.budgets, Account: "123456789012", Host: "ayis", INR: inr, FX: &fx2, Email: "a@b.c"}
@@ -490,7 +490,7 @@ func TestARefusedLaunchStopsWithTheCauseAndRecordsNothing(t *testing.T) {
 	if rc := r.i.Run(context.Background()); rc != 1 {
 		t.Fatalf("rc %d", rc)
 	}
-	if !strings.Contains(r.o.String(), "!! AWS has no spare g6.xlarge in ap-south-2 right now") || !strings.Contains(r.e.String(), "could not launch the instance - see the launch error above") {
+	if !strings.Contains(r.o.String(), "!! AWS has no spare g6.xlarge in ap-south-1 right now") || !strings.Contains(r.e.String(), "could not launch the instance - see the launch error above") {
 		t.Errorf("%s\n%s", r.o, r.e)
 	}
 	if r.env.Get("GAME_INSTANCE_ID") != "" || len(r.notes) != 0 {
@@ -520,7 +520,7 @@ func TestNoNewNodeSaysWhereToLook(t *testing.T) {
 	if rc := r.i.Run(context.Background()); rc != 1 {
 		t.Fatalf("rc %d", rc)
 	}
-	if !strings.Contains(r.e.String(), "no new node joined after 30 min.") || !strings.Contains(r.e.String(), "aws ec2 get-console-output --region ap-south-2 --instance-id i-0new --output text | tail -40") {
+	if !strings.Contains(r.e.String(), "no new node joined after 30 min.") || !strings.Contains(r.e.String(), "aws ec2 get-console-output --region ap-south-1 --instance-id i-0new --output text | tail -40") {
 		t.Errorf("%s", r.e)
 	}
 }

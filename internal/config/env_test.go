@@ -56,7 +56,7 @@ func TestExportedWinsAndDefaultsBackStop(t *testing.T) {
 		t.Errorf("an exported value must beat the file, got %q", e.Region())
 	}
 	e = Load(lookup(map[string]string{"AYIS_ENV_FILE": filepath.Join(t.TempDir(), "none")}), "")
-	if e.Region() != "ap-south-2" || e.Host() != "ayis" {
+	if e.Region() != "ap-south-1" || e.Host() != "ayis" {
 		t.Errorf("defaults: %q %q", e.Region(), e.Host())
 	}
 }

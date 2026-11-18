@@ -201,7 +201,7 @@ func TestSpotFallsBackToOnDemandWhenItsQuotaCannotCoverTheBox(t *testing.T) {
 	r.c.Clients = func(context.Context) (Clients, error) {
 		return Clients{EC2: r.e, Quotas: quotaFake{QuotaSpot: 0, QuotaOnDemand: 8}, FreeTier: planFake("PAID")}, nil
 	}
-	if _, rc := r.c.Run(context.Background()); rc != 1 || !strings.Contains(r.e2.String()+r.o.String(), "spot GPU quota in ap-south-2 is 0 vCPU; g6.xlarge needs 4.") {
+	if _, rc := r.c.Run(context.Background()); rc != 1 || !strings.Contains(r.e2.String()+r.o.String(), "spot GPU quota in ap-south-1 is 0 vCPU; g6.xlarge needs 4.") {
 		t.Errorf("rc %d\n%s%s", rc, r.o, r.e2)
 	}
 }
@@ -224,7 +224,7 @@ func TestBadRegionAndMissingTypeSayWhatToChange(t *testing.T) {
 	}
 	r = newRig(t, good, "", false)
 	r.e.noType = true
-	if _, rc := r.c.Run(context.Background()); rc != 1 || !strings.Contains(r.e2.String(), "g6.xlarge is not offered in ap-south-2.") {
+	if _, rc := r.c.Run(context.Background()); rc != 1 || !strings.Contains(r.e2.String(), "g6.xlarge is not offered in ap-south-1.") {
 		t.Errorf("%s", r.e2)
 	}
 }
