@@ -52,7 +52,11 @@ func (f *fake) Specs(_ context.Context, _ string, types []string) (map[string]Sp
 	for _, t := range types {
 		gpu := "T4"
 		v, store := 16.0, int64(125)
-		out[t] = Spec{VCPU: 4, RAMGiB: 16, GPU: &gpu, VRAMGiB: &v, StoreGB: &store}
+		vcpu := 4
+		if strings.Contains(t, ".2xlarge") {
+			vcpu = 8
+		}
+		out[t] = Spec{VCPU: vcpu, RAMGiB: 16, GPU: &gpu, VRAMGiB: &v, StoreGB: &store}
 	}
 	return out, nil
 }
@@ -215,6 +219,32 @@ func TestAQuotaOfZeroIsNotAnOptIn(t *testing.T) {
 	}
 	txt := Show(r, false)
 	if !strings.Contains(txt, "opt-in") || !strings.Contains(txt, "0/ok") || !strings.Contains(txt, "ok/ok") {
+		t.Errorf("%s", txt)
+	}
+}
+
+// A quota is vCPUs, so 4 covers a 4-vCPU machine and not an 8-vCPU one. It
+// once read "ok" for g7.2xlarge at score 9 in a region with a 4 vCPU quota.
+func TestAQuotaCoversAMachineOnlyIfItHasTheVCPUs(t *testing.T) {
+	f := world()
+	f.gpu["*"] = append(f.gpu["*"], machines.GPU{Type: "g7.2xlarge", VCPUs: 8})
+	f.scores["g7.2xlarge"] = map[string]int{"ap-south-1": 9}
+	f.offers["ap-south-1"] = append(f.offers["ap-south-1"], "g7.2xlarge")
+	r := scan(t, f, func(o *Options) { o.Types = []string{"g4dn.xlarge", "g7.2xlarge"} })
+	var row RegionRow
+	for _, x := range r.Regions {
+		if x.Region == "ap-south-1" {
+			row = x
+		}
+	}
+	for _, m := range row.Machines {
+		want := m.Type == "g4dn.xlarge"
+		if *m.FitsSpot != want || *m.FitsOnDemand != want {
+			t.Errorf("%s with a 4/4 quota: spot %v on demand %v, want %v", m.Type, *m.FitsSpot, *m.FitsOnDemand, want)
+		}
+	}
+	txt := Show(r, false)
+	if !strings.Contains(txt, "g7.2xlarge    9      4/4") || !strings.Contains(txt, "g4dn.xlarge   9      ok/ok") {
 		t.Errorf("%s", txt)
 	}
 }

@@ -48,3 +48,9 @@ app/dist/
 *.pdf
 Acct_Statement*
 /stitch_design/*.png
+
+# Personal scratch at the repo root: AWS quota-case drafts, a region notes
+# file, and tmux server logs.
+/ap-south-1
+/request_qutoa_case_*.md
+tmux-server-*.log

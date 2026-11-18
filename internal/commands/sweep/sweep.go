@@ -436,7 +436,14 @@ func Scan(ctx context.Context, b Backend, o Options) Result {
 				m.USDHourOD, m.INRHourOD = &v, money(&v, o.INRPerUSD)
 			}
 			if d.quota != nil {
-				fs, fo := d.quota[1] >= 4, d.quota[0] >= 4
+				// A quota is a count of vCPUs, so whether it covers a machine depends
+				// on the machine: 4 covers a g4dn.xlarge and not a g7.2xlarge, which
+				// once read "ok" here at score 9 and could not have launched.
+				need := 4
+				if sp, ok := specs[t]; ok && sp.VCPU > 0 {
+					need = sp.VCPU
+				}
+				fs, fo := d.quota[1] >= need, d.quota[0] >= need
 				m.FitsSpot, m.FitsOnDemand = &fs, &fo
 			}
 			row.Machines = append(row.Machines, m)

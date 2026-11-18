@@ -49,7 +49,12 @@ func Show(d Result, all bool) string {
 				case m.FitsSpot == nil:
 					q = "?"
 				default:
+					// Short of "ok", the number is the quota there is: 0 is a request
+					// from nothing, 4 is a request for more than this machine's 4.
 					od, sp := "0", "0"
+					if r.Quota != nil {
+						od, sp = fmt.Sprint(r.Quota.OnDemandVCPU), fmt.Sprint(r.Quota.SpotVCPU)
+					}
 					if *m.FitsOnDemand {
 						od = "ok"
 					}
@@ -82,7 +87,8 @@ func Show(d Result, all bool) string {
 					m.Type, score, q, inr(m.INRHourSpot)+" / "+inr(m.INRHourOD))
 			}
 		}
-		b.WriteString("\n  QUOTA is on demand/spot: ok means 4 vCPU is covered, 0 means ask for it,\n")
+		b.WriteString("\n  QUOTA is on demand/spot: ok means the quota covers that machine's vCPUs;\n")
+		b.WriteString("  a number is the vCPU quota you have, too small for it - ask for more;\n")
 		b.WriteString("  opt-in means the region is not enabled so the quota cannot be read yet.\n")
 	}
 	switch {
