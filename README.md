@@ -9,6 +9,27 @@ A desktop app for Linux, built on [Sunshine](https://github.com/LizardByte/Sunsh
 > **Beta.** An AWS machine bills by the hour while it runs. No warranty - see [LICENSE](LICENSE)
 > and [docs/cost.md](docs/cost.md).
 
+![Home: an AWS machine and your own server side by side, with this month's cost](docs/images/home.png)
+
+<table>
+  <tr>
+    <td><img src="docs/images/machine.png" alt="Machine: start, stream quality, and what is working"></td>
+    <td><img src="docs/images/games.png" alt="Games: saved games kept between machines, and the Steam login"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Machine</b> - one button to start, and a checklist of what is working</td>
+    <td align="center"><b>Games</b> - games are saved when a machine is deleted and restored on the next</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/safety.png" alt="Safety: three layers of auto-stop and a monthly budget alert"></td>
+    <td><img src="docs/images/spending.png" alt="Spending: this month's AWS bill, day by day"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Safety</b> - three layers of auto-stop, so a forgotten machine does not bill all night</td>
+    <td align="center"><b>Spending</b> - the AWS bill day by day, and what you pay even when not playing</td>
+  </tr>
+</table>
+
 ## Install
 
 Download from [Releases](https://github.com/jebin2/ayis/releases):

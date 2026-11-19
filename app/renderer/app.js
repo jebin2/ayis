@@ -1391,7 +1391,7 @@ function paintCostPage() {
 
   // ── day by day: what you played, the machine, storage, and the rest ──
   $('c-days-note').textContent = 'Days with no charges are omitted. The AWS bill lags about a day.'
-    + (inr ? ` ₹${inr} to the dollar.` : '');
+    + (inr ? ` ₹${(+inr).toFixed(2)} to the dollar.` : '');
   paintRefreshAge();
   const parts = x => ({ machine: x.compute || 0, storage: (x.s3 || 0) + (x.disk || 0),
                         other: (x.egress || 0) + (x.api || 0) + (x.other || 0) });
