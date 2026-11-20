@@ -40,12 +40,21 @@ Download from [Releases](https://github.com/jebin2/ayis/releases):
 | `.deb` | Debian, Ubuntu, Mint | `sudo dpkg -i <file>` |
 | `.tar.gz` | Any Linux | Extract and run `ayis` |
 | `.AppImage` | Any Linux with FUSE 2 | Make executable and run |
+| `.dmg` / `-portable.exe` | macOS, Windows | **Untested first try**, unsigned - see the release notes |
+
+Linux is where Ayis is built and used. On macOS and Windows the `ayis` program has been through a
+full build, play and delete, but the desktop app around it has not yet been used by a person.
 
 ## What you need
 
 - A [Tailscale](https://tailscale.com) account
 - **Your own server:** a Linux machine you can reach over SSH
-- **AWS:** an account on a paid plan
+- **AWS:** an account on a paid plan, and a GPU quota
+
+> **A new AWS account can run zero GPU machines.** You have to ask AWS to raise the limit, and
+> the first answer is usually no - reopening the same case with a use case gets it approved, but
+> it can take a few days. Start early: [docs/quota-request.md](docs/quota-request.md), or
+> `ayis quota request ondemand`. A server of your own needs none of this.
 
 The app installs anything missing on this computer when you add a machine.
 
