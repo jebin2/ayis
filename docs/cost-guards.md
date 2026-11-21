@@ -15,8 +15,9 @@ to take down.
 | 2 | on-host watchdog | the box it protects | forgotten disconnect, client crash | 15 min with no stream, no download and no game being put in place |
 | 3 | cloud watchdog (Lambda) | a deleted or disabled schedule | a wedged box, a box left running outside a session, a box stuck going down | 30 min idle; forced after 1 h stuck |
 
-The **AWS budget is not in that list**, because it stops nothing - it emails you. It is the
-backstop for everything the three layers miss, not a layer.
+The **AWS budget is not in that list**: on its own it emails you. It is the backstop for
+everything the three layers miss, not a layer - and since the hard limits below, a spent budget
+also blocks and ends the machine.
 
 They are **armed in roughly the reverse order**: the budget and the cloud watchdog before
 anything launches, and the on-host watchdog during the build. A guard that only exists after
@@ -27,6 +28,45 @@ Worst-case leak with all three armed is about 30 minutes of runtime. A box left 
 stopped for `GAME_ARCHIVE_EXPIRY_DAYS` (14 by default, "Keep saved games" in the app), with a
 phone warning a day before. Its games were saved to S3 when it stopped, and are kept that many
 days again. `0` keeps both forever.
+
+## Hard limits
+
+The three layers end a machine **nobody is using**. A machine somebody IS using - a session
+left running overnight, a download that never ends, a beta tester who plays all weekend - gets
+past every one of them. So the bill has a ceiling that does not depend on anybody remembering
+to stop. Each is enforced by the cloud watchdog, every 5 minutes, gracefully: the machine saves
+its games on the way down, exactly as for an idle stop.
+
+| Limit | Setting | Default | At the limit | The way past it |
+|---|---|---|---|---|
+| Play hours a month | `GAME_MAX_HOURS_MONTH` | 60 | the machine is switched off; `ayis open` and `ayis init` refuse to start one | `ayis limits extend-month <hours>` - this month only |
+| One session | `GAME_MAX_SESSION_HOURS` | 6 | the machine is switched off | `ayis limits extend-session [hours]`, or press Play for a new session |
+| The AWS budget | `GAME_BUDGET_INR` | 5000 | AWS attaches a deny policy, so no machine of this host can launch or start; the watchdog sees it and switches the running one off | `ayis limits unblock` - AWS then leaves it until next month |
+
+Each warns 30 minutes before (a phone notification, once per deadline), and `0` turns either
+hour limit off. In the app, all of it is the **Hard limits** card on Safety, with the buttons
+beside each. `ayis limits` says where each stands.
+
+- **The month** is the calendar month in UTC, as AWS bills it - in India it resets at 05:30 on
+  the 1st. Hours are machine hours, on demand or spot. The count lives in a free SSM parameter,
+  `/ayis/<host>/usage/<YYYY-MM>`, and is recomputed every run from each running machine's
+  `LaunchTime`, so a missed or repeated run adds or loses nothing; a run that has ended is filed
+  with the time last seen, at most one check short. An unreadable count is an error, never zero.
+- **The session** counts from when the machine started (`LaunchTime`). An extension is a tag on
+  the instance, `ayis-session-until`; it never shortens the limit.
+- **The budget's block** is an AWS Budgets action at 100% of actual spend. The policy,
+  `<host>-budget-block`, denies `ec2:RunInstances` for an instance tagged with the host and
+  `ec2:StartInstances` on one - nothing else, so the same IAM user can still do anything else it
+  does. It is attached to whoever ayis runs as (an IAM user, or the role behind an assumed-role
+  session; the root user cannot carry a policy, so there is no block for root). AWS Budgets
+  attaches it through the role `<host>-budget-action`, which may attach that one policy and no
+  other. Every build arms it; `ayis limits arm` arms it for a machine built before it existed.
+  AWS's bill lags 8-24 hours, so the block is late by that much - the hour limits are the
+  prompt ones, the block is what still works if everything else is gone.
+- **Cost of the limits themselves: nothing.** SSM standard parameters and tags are free, the
+  watchdog was already running, and the first two action-enabled budgets in an account are free.
+- `ayis destroy --all` (and `ayis aws disconnect`) removes the policy and the role; the action
+  goes with the budget.
 
 ## Layer 3: the cloud watchdog
 

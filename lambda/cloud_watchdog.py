@@ -92,6 +92,22 @@ def _rate(k):
 S3_USD_PER_GB = _rate("AYIS_S3_USD_GB_MONTH")
 INR_PER_USD = _rate("AYIS_INR_PER_USD")
 
+# HARD LIMITS. The idle guards end a machine nobody uses; these end one somebody
+# IS using, because cost has to have a ceiling that does not depend on anybody
+# remembering to stop. Each is 0 (off) unless ayis passed it.
+#   MAX_HOURS_MONTH    machine hours in a calendar month (UTC, as AWS bills it)
+#   MAX_SESSION_HOURS  hours one run of the machine may last
+#   BLOCK_POLICY_ARN   the deny policy the AWS budget attaches when it is spent:
+#                      attached anywhere means the budget is used up
+MAX_HOURS_MONTH = int(os.environ.get("AYIS_MAX_HOURS_MONTH", "0") or 0)
+MAX_SESSION_HOURS = int(os.environ.get("AYIS_MAX_SESSION_HOURS", "0") or 0)
+BLOCK_POLICY_ARN = os.environ.get("AYIS_BLOCK_POLICY_ARN", "")
+# A warning this long before a limit ends the machine, sent once per deadline.
+LIMIT_WARN_MINUTES = 30
+# Written by `ayis limits extend-session`: the session may run until this time.
+SESSION_UNTIL_TAG = "ayis-session-until"
+SESSION_WARNED_TAG = "ayis-session-warned"
+
 # ntfy push notifications. Off unless ayis passed a URL.
 NTFY_URL = os.environ.get("AYIS_NTFY_URL", "")
 # A launch history longer than this is treated as unreadable, not as empty.
@@ -147,7 +163,7 @@ def handler(event, context):
     dry = isinstance(event, dict) and bool(event.get("dry_run"))
     return run_all(boto3.client("ec2"), boto3.client("cloudwatch"), boto3.client("s3"),
                    boto3.client("ssm"), boto3.client("cloudtrail"), datetime.now(timezone.utc), dry,
-                   s3_for)
+                   s3_for, boto3.client("iam") if BLOCK_POLICY_ARN else None)
 
 
 def state_changed(ec2, event, cw=None, now=None, ssm=None, s3=None, sleep=None):
@@ -248,14 +264,22 @@ def drop_games_disk(ec2, s3, inst, sleep=None):
     return "deleted"
 
 
-def run_all(ec2, cw, s3, ssm, trail, now, dry=False, s3_for=None):
-    """The idle check, then the archive check. The second runs even when the
-    first fails, and the invocation still counts as an error afterwards."""
+def run_all(ec2, cw, s3, ssm, trail, now, dry=False, s3_for=None, iam=None):
+    """The hard limits, the idle check, then the archive check. Each runs even
+    when one before it fails, and the invocation still counts as an error
+    afterwards."""
     failure = None
+    try:
+        lim = limits(ec2, ssm, iam, now, dry)
+    except Exception as exc:
+        say("limits: check FAILED: %s" % exc)
+        failure, lim = exc, None
     try:
         result = run(ec2, cw, now, dry)
     except Exception as exc:
-        failure, result = exc, {"decisions": []}
+        failure, result = failure or exc, {"decisions": []}
+    if lim is not None:
+        result["limits"] = lim
     try:
         result["stopped"] = expire_stopped(ec2, now, dry)
     except Exception as exc:
@@ -274,6 +298,186 @@ def run_all(ec2, cw, s3, ssm, trail, now, dry=False, s3_for=None):
                    "urgent", "rotating_light")
         raise failure
     return result
+
+
+def month_key(now):
+    return now.strftime("%Y-%m")
+
+
+def month_start(now):
+    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def read_usage(ssm, now):
+    """This month's machine time: {"done": seconds of runs that ended, "open":
+    {"<instance>@<launch>": seconds so far}, "warned": bool}. Missing is a month
+    with no use yet; unreadable is an error, never zero."""
+    raw = mark_get(ssm, "usage/" + month_key(now))
+    if raw is None:
+        return {"done": 0, "open": {}, "warned": False}
+    try:
+        u = json.loads(raw)
+        return {"done": float(u.get("done", 0)), "open": {k: float(v) for k, v in (u.get("open") or {}).items()},
+                "warned": bool(u.get("warned", False))}
+    except (TypeError, ValueError, AttributeError):
+        raise RuntimeError("unreadable usage mark %r" % raw)
+
+
+def extra_hours(ssm, now):
+    """Hours added to this month's cap by `ayis limits extend-month`."""
+    raw = mark_get(ssm, "usage/" + month_key(now) + "-extra")
+    try:
+        return float(raw) if raw is not None else 0.0
+    except ValueError:
+        raise RuntimeError("unreadable extra-hours mark %r" % raw)
+
+
+def count_usage(u, running, now):
+    """Brings the record up to now. Every run recomputes each running machine's
+    time from its LaunchTime, so a missed or repeated run cannot add or lose
+    time; a run that has ended moves to "done" with the time last seen - at most
+    one check (5 minutes) short. Returns the seconds used this month."""
+    start = month_start(now)
+    live = {}
+    for inst in running:
+        launched = inst["LaunchTime"]
+        live["%s@%s" % (inst["InstanceId"], iso(launched))] = max(0.0, (now - max(launched, start)).total_seconds())
+    for k, secs in list(u["open"].items()):
+        if k not in live:
+            u["done"] += secs
+            del u["open"][k]
+    u["open"].update(live)
+    return u["done"] + sum(u["open"].values())
+
+
+def budget_spent(iam):
+    """Whether the AWS budget's deny policy is attached to anything: AWS Budgets
+    attaches it when the month's budget is used up."""
+    if iam is None or not BLOCK_POLICY_ARN:
+        return False
+    try:
+        r = iam.list_entities_for_policy(PolicyArn=BLOCK_POLICY_ARN)
+    except Exception as exc:
+        if error_code(exc) == "NoSuchEntity":
+            return False
+        raise
+    return bool(r.get("PolicyUsers") or r.get("PolicyRoles") or r.get("PolicyGroups"))
+
+
+def session_deadline(inst):
+    """When this run of the machine must end: MAX_SESSION_HOURS after it started,
+    or later when it was extended."""
+    if not MAX_SESSION_HOURS:
+        return None
+    deadline = inst["LaunchTime"] + timedelta(hours=MAX_SESSION_HOURS)
+    until = tag_value(inst, SESSION_UNTIL_TAG)
+    if until:
+        try:
+            t = datetime.strptime(until, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            if t > deadline:
+                deadline = t
+        except ValueError:
+            say("%s: unreadable %s %r - ignored" % (inst["InstanceId"], SESSION_UNTIL_TAG, until))
+    return deadline
+
+
+def hours(secs):
+    return "%.1fh" % (secs / 3600.0)
+
+
+def limits(ec2, ssm, iam, now, dry=False):
+    """Ends a RUNNING machine at a hard limit, busy or not: the month's hours,
+    the session's length, or a spent budget. Gracefully, like the idle stop -
+    the games are saved on the way down. Warns once, LIMIT_WARN_MINUTES before."""
+    if not (MAX_HOURS_MONTH or MAX_SESSION_HOURS or BLOCK_POLICY_ARN):
+        return None
+    try:
+        resp = ec2.describe_instances(Filters=[
+            {"Name": "tag:Name", "Values": [TS_HOST]},
+            {"Name": "instance-state-name", "Values": ["pending", "running"]}])
+    except Exception as exc:
+        say("limits: CANNOT QUERY AWS: %s" % exc)
+        raise
+    running = [i for r in resp.get("Reservations", []) for i in r.get("Instances", [])]
+    failure = None
+    why_all = None
+
+    # The month. Counted even with no machine running, so a run that ended is
+    # moved to "done" - and only when a cap is set.
+    if MAX_HOURS_MONTH:
+        try:
+            u = read_usage(ssm, now)
+            used = count_usage(u, running, now)
+            cap = (MAX_HOURS_MONTH + extra_hours(ssm, now)) * 3600
+            left = cap - used
+            if running and left <= 0:
+                why_all = "monthly"
+                say("limits: %s used of the %s monthly cap - ending the machine" % (hours(used), hours(cap)))
+            elif running and left <= LIMIT_WARN_MINUTES * 60 and not u["warned"]:
+                if dry or notify("%d minutes of play left this month" % max(1, int(left // 60)),
+                                 "Your game PC switches off when this month's %s are used. To keep playing, "
+                                 "add hours in the ayis app (Safety)." % hours(cap), "high", "hourglass"):
+                    u["warned"] = True
+            elif left > LIMIT_WARN_MINUTES * 60:
+                u["warned"] = False
+            if running:
+                say("limits: %s used of %s this month" % (hours(used), hours(cap)))
+            if not dry:
+                mark_put(ssm, "usage/" + month_key(now), json.dumps(u, sort_keys=True))
+        except Exception as exc:
+            say("limits: monthly hours could not be counted - not enforced this run: %s" % exc)
+            failure = exc
+
+    if running and why_all is None and BLOCK_POLICY_ARN:
+        try:
+            if budget_spent(iam):
+                why_all = "budget"
+                say("limits: the AWS budget is spent (its block policy is attached) - ending the machine")
+        except Exception as exc:
+            say("limits: could not tell whether the budget is spent: %s" % exc)
+            failure = failure or exc
+
+    decisions = []
+    for inst in running:
+        iid = inst["InstanceId"]
+        why = why_all
+        deadline = session_deadline(inst)
+        if why is None and deadline is not None:
+            if now >= deadline:
+                why = "session"
+                say("%s has run since %s, past its session limit (%s) - ending it" % (iid, iso(inst["LaunchTime"]), iso(deadline)))
+            elif deadline - now <= timedelta(minutes=LIMIT_WARN_MINUTES) and tag_value(inst, SESSION_WARNED_TAG) != iso(deadline):
+                if not dry and notify("Game PC switches off in %d minutes" % max(1, minutes(deadline - now)),
+                                      "This session reaches its time limit. To keep playing, extend it in the "
+                                      "ayis app (Safety).", "high", "hourglass"):
+                    ec2.create_tags(Resources=[iid], Tags=[{"Key": SESSION_WARNED_TAG, "Value": iso(deadline)}])
+        if why is None:
+            continue
+        if inst["State"]["Name"] != "running":
+            continue
+        verb = "terminate" if inst.get("InstanceLifecycle") == "spot" else "stop"
+        if dry:
+            say("%s WOULD %s - %s limit (dry run)" % (iid, verb, why))
+            decisions.append({"instance": iid, "action": "would-" + verb, "reason": why})
+            continue
+        call(ec2, verb, iid)
+        say("%s %s issued - %s limit; the box saves its games as it shuts down" % (iid, verb, why))
+        title, body = {
+            "monthly": ("This month's play time is used up",
+                        "Your game PC is switching off and your games are being saved. Add hours in the ayis "
+                        "app (Safety) to play again this month."),
+            "session": ("Session time limit reached",
+                        "Your game PC is switching off and your games are being saved. Press Play to start "
+                        "a new session."),
+            "budget": ("Monthly budget used up",
+                       "AWS reports this month's budget as spent, so your game PC is switching off and new "
+                       "ones cannot start. Your games are being saved."),
+        }[why]
+        notify(title, body, "high", "stop_sign")
+        decisions.append({"instance": iid, "action": verb, "reason": why})
+    if failure:
+        raise failure
+    return {"decisions": decisions}
 
 
 def error_code(exc):

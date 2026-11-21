@@ -117,3 +117,40 @@ func (s Settings) withExpiry(days int) Settings { s.ExpiryDays = days; return s 
 func jsonOf(v any) (string, error) { b, err := json.Marshal(v); return string(b), err }
 
 func jsonMust(v any) string { s, _ := jsonOf(v); return s }
+
+func TestLimitsOffKeepTheDeployedText(t *testing.T) {
+	s := Settings{Host: "ayis", Account: "1", IdleMinutes: 30, StuckMinutes: 60}
+	before := s.Env()
+	if strings.Contains(before, "MAX_") || strings.Contains(before, "BLOCK") {
+		t.Errorf("limits off must not appear: %s", before)
+	}
+	s.MaxHoursMonth, s.MaxSessionHours, s.BlockPolicyARN = 60, 6, "arn:aws:iam::1:policy/ayis-budget-block"
+	on := s.Env()
+	if !strings.HasPrefix(on, strings.TrimSuffix(before, "}")) ||
+		!strings.HasSuffix(on, ",AYIS_MAX_HOURS_MONTH=60,AYIS_MAX_SESSION_HOURS=6,AYIS_BLOCK_POLICY_ARN=arn:aws:iam::1:policy/ayis-budget-block}") {
+		t.Errorf("limits go last: %s", on)
+	}
+	m := s.EnvMap()
+	if m["AYIS_MAX_HOURS_MONTH"] != "60" || m["AYIS_MAX_SESSION_HOURS"] != "6" || m["AYIS_BLOCK_POLICY_ARN"] == "" {
+		t.Errorf("map: %v", m)
+	}
+}
+
+func TestPolicyForLimits(t *testing.T) {
+	s := Settings{Host: "ayis", Account: "1", ExpiryDays: 0, MaxHoursMonth: 60, BlockPolicyARN: "arn:aws:iam::1:policy/ayis-budget-block"}
+	p := jsonMust(s.Policy("ap-south-1"))
+	for _, want := range []string{`"Sid":"UsageMarks"`, `"ssm:PutParameter"`, `"iam:ListEntitiesForPolicy"`, `"Resource":"arn:aws:iam::1:policy/ayis-budget-block"`, `"ayis-session-warned"`} {
+		if !strings.Contains(p, want) {
+			t.Errorf("policy lacks %s: %s", want, p)
+		}
+	}
+	// Still no delete of anything with expiry off; and the IAM read is that one policy.
+	if strings.Contains(p, "s3:Delete") || strings.Contains(p, "ssm:DeleteParameter") || strings.Contains(p, `"iam:Attach`) {
+		t.Errorf("limits must not grant deletes or attaches: %s", p)
+	}
+	// Expiry on already grants the marks: not granted twice.
+	s.ExpiryDays = 14
+	if strings.Contains(jsonMust(s.Policy("ap-south-1")), "UsageMarks") {
+		t.Error("UsageMarks duplicates ArchiveExpiryMarks")
+	}
+}

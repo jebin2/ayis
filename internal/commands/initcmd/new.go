@@ -23,10 +23,12 @@ import (
 	"github.com/jebin2/ayis/internal/ask"
 	"github.com/jebin2/ayis/internal/awscfg"
 	"github.com/jebin2/ayis/internal/commands/check"
+	"github.com/jebin2/ayis/internal/commands/limitscmd"
 	"github.com/jebin2/ayis/internal/commands/notify"
 	"github.com/jebin2/ayis/internal/commands/watchdog"
 	"github.com/jebin2/ayis/internal/config"
 	"github.com/jebin2/ayis/internal/library"
+	"github.com/jebin2/ayis/internal/limits"
 	"github.com/jebin2/ayis/internal/local"
 	"github.com/jebin2/ayis/internal/output"
 	"github.com/jebin2/ayis/internal/pricing"
@@ -69,9 +71,9 @@ func New(ctx context.Context, get config.Lookup, env *config.Env, out *output.Ou
 	if base, ok := get("XDG_CACHE_HOME"); ok && base != "" {
 		cache = filepath.Join(base, "ayis")
 	}
-	account := ""
+	account, callerARN := "", ""
 	if id, err := sts.NewFromConfig(cfg).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}); err == nil {
-		account = aws.ToString(id.Account)
+		account, callerARN = aws.ToString(id.Account), aws.ToString(id.Arn)
 	}
 	ec := ec2.NewFromConfig(cfg)
 	store := &library.AWSStore{Home: region}
@@ -142,6 +144,21 @@ func New(ctx context.Context, get config.Lookup, env *config.Env, out *output.Ou
 			rates := pricing.Load(ctx, popts, region)
 			return provision.Budget{C: budgets.NewFromConfig(us), Account: account, Host: host, INR: inr, FX: rates.FXINRPerUSD, Email: email}
 		},
+		ArmBlock: func(ctx context.Context, say func(string)) error {
+			p, err := limits.PrincipalOf(callerARN)
+			if err != nil {
+				return err
+			}
+			var to []string
+			for _, e := range strings.Split(email, ",") {
+				if e = strings.TrimSpace(e); e != "" {
+					to = append(to, e)
+				}
+			}
+			return limits.Block{IAM: iam.NewFromConfig(cfg), Budgets: budgets.NewFromConfig(us), Account: account, Host: host,
+				Out: say, Sleep: time.Sleep}.Arm(ctx, p, to)
+		},
+		Limits:   func(ctx context.Context) string { return limitscmd.Check(ctx, env) },
 		Shutdown: ec, EC2: ec, TS: ts, Sun: sun,
 		Pair:      sunshine.Pairer{C: sun, R: r, Sleep: time.Sleep, Log: out.Log},
 		Moonlight: r.Has("moonlight"),

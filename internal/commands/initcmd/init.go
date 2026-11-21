@@ -54,9 +54,14 @@ type Init struct {
 	BucketRegion func(ctx context.Context, bucket string) (string, error)
 	Provisioner  provision.Provisioner
 	Budget       func(inr float64) provision.Budget
-	Shutdown     provision.ShutdownAPI
-	EC2          box.EC2
-	TS           func(token string) tskey.Client
+	// ArmBlock puts the block on the budget: spent, no machine starts. Nil skips it.
+	ArmBlock func(ctx context.Context, out func(string)) error
+	// Limits is why a machine must not launch now (a hard cost limit), or "". Nil
+	// does not check.
+	Limits   func(ctx context.Context) string
+	Shutdown provision.ShutdownAPI
+	EC2      box.EC2
+	TS       func(token string) tskey.Client
 
 	// The build, which needs the box over the tailnet.
 	Sun       sunshine.Client
@@ -138,6 +143,17 @@ func (i *Init) Run(ctx context.Context) int {
 	b.Out = func(l string) { i.cont("    ", l) }
 	if err := b.Arm(ctx); err != nil {
 		i.Out.Log("budget setup failed - continuing")
+	}
+	if i.ArmBlock != nil {
+		if err := i.ArmBlock(ctx, func(l string) { i.cont("    ", l) }); err != nil {
+			i.Out.LogAs("warn", "the budget's block could not be armed - the budget still emails, the hour limits still apply: "+err.Error())
+		}
+	}
+	// A hard limit says no: launching would bill a build the watchdog then ends.
+	if i.Limits != nil {
+		if why := i.Limits(ctx); why != "" {
+			return i.die("not building a machine: " + why)
+		}
 	}
 
 	// Notifications are off unless GAME_NTFY_URL is set. A value that is set but

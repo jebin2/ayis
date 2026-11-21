@@ -65,6 +65,9 @@ The app installs anything missing on this computer when you add a machine.
 3. Close Moonlight to end the session.
 
 An AWS machine keeps running after a session until auto-stop ends it or you press **Delete**.
+**Hard limits** switch it off even while you play: 60 hours a month, 6 hours a session, and the
+monthly budget - each with a warning first and a button on the Safety page to extend it
+([docs/cost-guards.md](docs/cost-guards.md#hard-limits)).
 Your games are saved to S3 when it is deleted and restored on the next build. Saved games are a
 recurring monthly cost, by size, for as long as they are kept - 14 days after the last machine by
 default, adjustable on the Games page.

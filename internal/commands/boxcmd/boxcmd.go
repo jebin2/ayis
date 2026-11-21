@@ -44,6 +44,9 @@ type Deps struct {
 	MoonlightConf string
 	// Destroy is `ayis destroy`, which a spot box's stop turns into.
 	Destroy func(ctx context.Context) int
+	// Limits is why a machine must not start now (a hard cost limit), or "". Nil
+	// does not check.
+	Limits func(ctx context.Context) string
 	// Force is --force.
 	Force bool
 	// Sure is --yes on stop: the caller (the app) has already asked, so ayis does not ask again.

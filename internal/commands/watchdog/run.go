@@ -18,6 +18,7 @@ import (
 	"github.com/jebin2/ayis/internal/awscfg"
 	"github.com/jebin2/ayis/internal/bucket"
 	"github.com/jebin2/ayis/internal/config"
+	"github.com/jebin2/ayis/internal/limits"
 	"github.com/jebin2/ayis/internal/output"
 	"github.com/jebin2/ayis/internal/pricing"
 	wd "github.com/jebin2/ayis/internal/watchdog"
@@ -75,7 +76,9 @@ func SettingsFor(env *config.Env, rates pricing.Rates, account string) wd.Settin
 		// The cloud watchdog is the backstop: it must never end a machine that its own
 		// idle stop - which saves the games first - is still entitled to wait for.
 		IdleMinutes: max(env.Int("GAME_WATCHDOG_IDLE_MIN"), env.Int("GAME_IDLE_MIN")+15), StuckMinutes: env.Int("GAME_WATCHDOG_STUCK_MIN"),
-		ExpiryDays: env.Int("GAME_ARCHIVE_EXPIRY_DAYS"), NtfyURL: config.NtfyURL(env.Get("GAME_NTFY_URL"))}
+		ExpiryDays: env.Int("GAME_ARCHIVE_EXPIRY_DAYS"), NtfyURL: config.NtfyURL(env.Get("GAME_NTFY_URL")),
+		MaxHoursMonth: env.Int("GAME_MAX_HOURS_MONTH"), MaxSessionHours: env.Int("GAME_MAX_SESSION_HOURS"),
+		BlockPolicyARN: limits.BlockPolicyARN(account, host)}
 	if rates.S3GBMonth != nil {
 		s.S3GBMonth = fmt.Sprintf("%.6g", *rates.S3GBMonth)
 	}

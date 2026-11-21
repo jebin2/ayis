@@ -45,6 +45,7 @@ var Registry = []Command{
 	{Path: []string{"host"}, Summary: "your own machines: list, add, status, setup, open, remove", JSON: true},
 	{Path: []string{"library"}, Aliases: [][]string{{"lib"}}, Summary: "the game archive: list, push, pull, elsewhere, account, forget, clean, reset, keep-for, move", JSON: true},
 	{Path: []string{"regions"}, Summary: "the regions you have enabled; optin lists the rest, enable turns one on", JSON: true},
+	{Path: []string{"limits"}, Summary: "the hard cost limits - play hours this month, the session limit, the budget's block - and extend-month <hours>, extend-session [hours], unblock, arm", JSON: true},
 	{Path: []string{"quota"}, Summary: "the GPU quota: what you have, how to ask for more, and the appeal text", JSON: true},
 	{Path: []string{"sweep"}, Aliases: [][]string{{"regions-sweep"}}, Summary: "every region scored for latency, capacity and quota", JSON: true},
 	{Path: []string{"machines"}, Aliases: [][]string{{"types"}}, Summary: "what GPU shapes a region rents, and what each costs", JSON: true},
@@ -83,6 +84,7 @@ var RunsAlone = [][]string{
 	{"creds", "tailscale", "authkey"},
 	{"deps", "install"},
 	{"aws", "disconnect"},
+	{"limits", "extend-month"}, {"limits", "extend-session"}, {"limits", "unblock"}, {"limits", "arm"},
 }
 
 // Asks is every question ayis can put to the app, by id.

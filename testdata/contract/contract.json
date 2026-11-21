@@ -11,7 +11,8 @@
     ["creds", "tailscale", "signin"],
     ["creds", "tailscale", "authkey"],
     ["deps", "install"],
-    ["aws", "disconnect"]
+    ["aws", "disconnect"],
+    ["limits", "extend-month"], ["limits", "extend-session"], ["limits", "unblock"], ["limits", "arm"]
   ],
   "asks": [
     "aws-access-key-id", "aws-secret-access-key",

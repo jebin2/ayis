@@ -40,8 +40,13 @@ type Settings struct {
 	StuckMinutes int
 	ExpiryDays   int
 	NtfyURL      string // "" leaves it absent
-	S3GBMonth    string // the price as ayis has it ("0.025"); "" when unknown
-	INRPerUSD    string // "" when unknown
+	// The hard limits, each 0 or "" for off: the month's machine hours, one
+	// session's hours, and the deny policy a spent AWS budget attaches.
+	MaxHoursMonth   int
+	MaxSessionHours int
+	BlockPolicyARN  string
+	S3GBMonth       string // the price as ayis has it ("0.025"); "" when unknown
+	INRPerUSD       string // "" when unknown
 }
 
 // Env is the function's environment, in the form `aws lambda` takes it, and
@@ -54,9 +59,18 @@ func (s Settings) Env() string {
 		}
 		return "," + k + "=" + v
 	}
-	return fmt.Sprintf("Variables={AYIS_TS_HOST=%s,AYIS_IDLE_MINUTES=%d,AYIS_BOOT_GRACE_MINUTES=%d,AYIS_STUCK_MINUTES=%d,AYIS_BUCKET=%s,AYIS_ACCOUNT=%s,AYIS_ARCHIVE_EXPIRY_DAYS=%d%s%s%s}",
+	num := func(k string, v int) string {
+		if v == 0 {
+			return ""
+		}
+		return opt(k, fmt.Sprint(v))
+	}
+	// The limits come last, and only when on: a watchdog deployed without them
+	// keeps the exact text - and so the fingerprint - it was deployed with.
+	return fmt.Sprintf("Variables={AYIS_TS_HOST=%s,AYIS_IDLE_MINUTES=%d,AYIS_BOOT_GRACE_MINUTES=%d,AYIS_STUCK_MINUTES=%d,AYIS_BUCKET=%s,AYIS_ACCOUNT=%s,AYIS_ARCHIVE_EXPIRY_DAYS=%d%s%s%s%s%s%s}",
 		s.Host, s.IdleMinutes, BootGrace, s.StuckMinutes, s.Bucket, s.Account, s.ExpiryDays,
-		opt("AYIS_S3_USD_GB_MONTH", s.S3GBMonth), opt("AYIS_INR_PER_USD", s.INRPerUSD), opt("AYIS_NTFY_URL", s.NtfyURL))
+		opt("AYIS_S3_USD_GB_MONTH", s.S3GBMonth), opt("AYIS_INR_PER_USD", s.INRPerUSD), opt("AYIS_NTFY_URL", s.NtfyURL),
+		num("AYIS_MAX_HOURS_MONTH", s.MaxHoursMonth), num("AYIS_MAX_SESSION_HOURS", s.MaxSessionHours), opt("AYIS_BLOCK_POLICY_ARN", s.BlockPolicyARN))
 }
 
 // EnvMap is the same environment as a map, for the API: the text form above is
@@ -75,6 +89,15 @@ func (s Settings) EnvMap() map[string]string {
 	}
 	if s.NtfyURL != "" {
 		m["AYIS_NTFY_URL"] = s.NtfyURL
+	}
+	if s.MaxHoursMonth != 0 {
+		m["AYIS_MAX_HOURS_MONTH"] = fmt.Sprint(s.MaxHoursMonth)
+	}
+	if s.MaxSessionHours != 0 {
+		m["AYIS_MAX_SESSION_HOURS"] = fmt.Sprint(s.MaxSessionHours)
+	}
+	if s.BlockPolicyARN != "" {
+		m["AYIS_BLOCK_POLICY_ARN"] = s.BlockPolicyARN
 	}
 	return m
 }
@@ -109,7 +132,7 @@ func (s Settings) Policy(region string) map[string]any {
 			"Condition": map[string]any{
 				"StringEquals": map[string]any{"ec2:ResourceTag/Name": s.Host},
 				"ForAllValues:StringEquals": map[string]any{"aws:TagKeys": []string{
-					"ayis-going-down-since", "ayis-slow-noted", "ayis-forced", "ayis-stopped-since", "ayis-stopped-warned"}}}},
+					"ayis-going-down-since", "ayis-slow-noted", "ayis-forced", "ayis-stopped-since", "ayis-stopped-warned", "ayis-session-warned"}}}},
 		// After the machine stops ITSELF (idle) with its games saved, its games disk
 		// goes too: detach and delete, only for the volume and instance tagged as
 		// this host's - never any other disk in the account.
@@ -123,6 +146,18 @@ func (s Settings) Policy(region string) map[string]any {
 	if s.Bucket != "" {
 		stmts = append(stmts, map[string]any{"Sid": "ReadTheSavedMarker", "Effect": "Allow", "Action": "s3:GetObject",
 			"Resource": fmt.Sprintf("arn:aws:s3:::%s/*pushed.json", s.Bucket)})
+	}
+	// The month's hours are kept in its own free SSM marks, under the same path.
+	if s.MaxHoursMonth > 0 && s.ExpiryDays <= 0 {
+		stmts = append(stmts, map[string]any{"Sid": "UsageMarks", "Effect": "Allow",
+			"Action":   []string{"ssm:GetParameter", "ssm:PutParameter"},
+			"Resource": fmt.Sprintf("arn:aws:ssm:*:%s:parameter/ayis/%s/*", s.Account, s.Host)})
+	}
+	// Whether the budget is spent: is its deny policy attached to anyone. Read only,
+	// and only that one policy.
+	if s.BlockPolicyARN != "" {
+		stmts = append(stmts, map[string]any{"Sid": "IsTheBudgetSpent", "Effect": "Allow",
+			"Action": "iam:ListEntitiesForPolicy", "Resource": s.BlockPolicyARN})
 	}
 	if s.ExpiryDays > 0 {
 		stmts = append(stmts,

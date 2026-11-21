@@ -171,6 +171,34 @@ cat > "$T/r/probe.js" <<'PROBE'
     watcher = W('running', { armed: true, state: 'armed' }, { armed: false, state: 'disabled' }, { budget: { usd: null } });
     paintAwsChecks();
     out.push('CHECKS BOXED | ' + checks());
+
+    // The hard limits card, from `ayis limits --json`.
+    const lim = () => text('g-limit-rows');
+    const L = extra => Object.assign({ month: { used_hours: 12.34, cap_hours: 60, extra_hours: 0, left_hours: 47.66, reached: false },
+      session_hours: 6, sessions: [], budget_blocked: false, warn_minutes: 30, month_resets: '2026-12-01T00:00:00Z' }, extra);
+    paintLimits(L());
+    out.push('LIM IDLE | ' + lim());
+    paintLimits(L({ month: { used_hours: 61, cap_hours: 65, extra_hours: 5, left_hours: 0, reached: true },
+      sessions: [{ id: 'i-a', ends: '2026-11-20T13:00:00Z', left_minutes: 20 }] }));
+    out.push('LIM CAPPED | ' + lim());
+    window.__ran = [];
+    [...document.querySelectorAll('#g-limit-rows button')].find(b => b.textContent === '+5 hours').click();
+    [...document.querySelectorAll('#g-limit-rows button')].find(b => b.textContent === '+1 hour').click();
+    await tick();
+    out.push('LIM RAN | ' + window.__ran.join(' ;; '));
+    paintLimits(L({ budget_blocked: true, session_hours: 0, month: { used_hours: 3, cap_hours: 0 } }));
+    out.push('LIM BLOCKED | ' + lim());
+    window.__ran = [];
+    [...document.querySelectorAll('#g-limit-rows button')].find(b => b.textContent === 'Unblock').click();
+    await tick();
+    out.push('LIM ASKS | ' + document.getElementById('confirm').open + ' ran=' + window.__ran.length);
+    document.getElementById('confirm-no').click();
+    await tick();
+    out.push('LIM DECLINED | ran=' + window.__ran.length);
+    paintLimits(L({ budget_armed: false }));
+    out.push('LIM UNARMED | ' + lim());
+    paintLimits(L({ month: {}, month_error: 'the month\'s usage record is unreadable' }));
+    out.push('LIM UNKNOWN | ' + lim());
   } catch (e) { out.push('THREW | ' + e.message); }
   out.push('ERRS | ' + (window.__errs || []).join(' ;; '));
   const pre = document.createElement('pre');
@@ -274,5 +302,26 @@ check "no painter threw"                 "$(grep -c '^THREW' <<<"$OUT")" "0"
 check "  and the page logged no errors"  "$(row ERRS)" "ERRS | "
 
 echo ""
+echo "9. the hard limits: where each stands, and the way past it"
+contains "hours used of the cap"          "$(row 'LIM IDLE')" "Play hours this month: 12.3 of 60"
+contains "  what is left, and when it resets" "$(row 'LIM IDLE')" "47.7 hours left. Resets"
+contains "  with hours to add"            "$(row 'LIM IDLE')" "+5 hours"
+contains "the session limit with no machine" "$(row 'LIM IDLE')" "Session limit: 6 hours"
+contains "the block is ready, and says what it does" "$(row 'LIM IDLE')" "Budget block: ready"
+contains "used up says so"                "$(row 'LIM CAPPED')" "This month's 65 hours are used up"
+contains "  and the hours added"          "$(row 'LIM CAPPED')" "(5 added this month)"
+contains "a running session ends at a time" "$(row 'LIM CAPPED')" "Session ends at"
+contains "  with minutes left"            "$(row 'LIM CAPPED')" "20 min left"
+contains "+5 hours runs extend-month"     "$(row 'LIM RAN')" "limits extend-month 5"
+contains "+1 hour runs extend-session"    "$(row 'LIM RAN')" "limits extend-session 1"
+contains "a spent budget says so"         "$(row 'LIM BLOCKED')" "Budget spent: machines are blocked"
+contains "  no cap is no cap"             "$(row 'LIM BLOCKED')" "No monthly limit is set."
+contains "  the session limit off"        "$(row 'LIM BLOCKED')" "Session limit: off"
+contains "Unblock asks first, running nothing" "$(row 'LIM ASKS')" "true ran=0"
+contains "  and No runs nothing"          "$(row 'LIM DECLINED')" "ran=0"
+contains "a block not set up is not 'ready'" "$(row 'LIM UNARMED')" "Budget block: not set up"
+lacks    "  and never says ready"        "$(row 'LIM UNARMED')" "Budget block: ready"
+contains "unknown is said, not zero"      "$(row 'LIM UNKNOWN')" "Play hours this month: unknown"
+
 echo "guards-dom: $pass passed, $fail failed"
 (( fail == 0 ))

@@ -1296,7 +1296,7 @@ function renderMonth(box, { hint } = {}) {
   const hasBox = !!(statusNow && statusNow.box && statusNow.box.state !== 'terminated');
   const note = el('p', 'font-code-sm text-code-sm mt-space-sm ' + (inAws || !hasBox ? 'text-outline' : 'text-error'),
     !inAws ? (hasBox ? 'No budget alert set in AWS.' : 'The budget alert is set when you build.')
-      : isFinite(budget) ? `Budget ${rs(budget)}/month. Alert by email only; nothing is stopped.` : '');
+      : isFinite(budget) ? `Budget ${rs(budget)}/month. Email at 80%; when spent, the machine is switched off and blocked.` : '');
   note.dataset.f = 'note';
   box.append(note);
 }
@@ -2127,8 +2127,8 @@ function paintGuards(d) {
   // through ayis like every other setting.
   const knobs = $('g-knobs');
   knobs.textContent = '';
-  const WANT = ['GAME_BUDGET_INR', 'EMAIL_ALERTS', 'GAME_WATCHDOG_IDLE_MIN',
-                'GAME_WATCHDOG_STUCK_MIN', 'GAME_NTFY_URL'];
+  const WANT = ['GAME_BUDGET_INR', 'GAME_MAX_HOURS_MONTH', 'GAME_MAX_SESSION_HOURS', 'EMAIL_ALERTS',
+                'GAME_WATCHDOG_IDLE_MIN', 'GAME_WATCHDOG_STUCK_MIN', 'GAME_NTFY_URL'];
   for (const key of WANT) {
     const r = config.find(x => x.key === key);
     if (!r) continue;
@@ -2152,6 +2152,9 @@ function paintGuards(d) {
     const v = r.value != null ? r.value : r.default;
     val.textContent = key === 'GAME_BUDGET_INR' && v != null ? `${rs(Number(v))} a month`
       : /_MIN$/.test(key) && v != null ? `${v} min${r.value == null ? ' (default)' : ''}`
+      // 0 is the setting's own word for "no limit".
+      : /^GAME_MAX_/.test(key) && v != null ? (Number(v) === 0 ? 'off'
+        : `${v} hours${key === 'GAME_MAX_HOURS_MONTH' ? ' a month' : ''}${r.value == null ? ' (default)' : ''}`)
       // No topic means your phone hears nothing, which is "off", not "not set".
       : key === 'GAME_NTFY_URL' && !r.is_set ? 'off'
       : settingValue(r);
@@ -2162,6 +2165,92 @@ function paintGuards(d) {
     right.append(val, edit);
     row.append(left, right);
     knobs.append(row);
+  }
+}
+
+// The hard limits, from `ayis limits --json`: a row each, with the way past it
+// beside it. The buttons run ayis, which writes; nothing here decides a limit.
+let limitsNow = null;
+function limitRow(title, detail, tone, actions) {
+  const row = document.createElement('div');
+  row.className = 'row flex-wrap border-b border-surface-variant/40 last:border-b-0 items-start';
+  const left = document.createElement('div');
+  left.className = 'min-w-[12rem] flex-1';
+  const n = document.createElement('p');
+  n.className = 'font-body-md text-body-md' + (tone === 'bad' ? ' text-error' : '');
+  n.textContent = title;
+  const d = document.createElement('p');
+  d.className = 'font-body-sm text-body-sm text-outline mt-0.5';
+  d.textContent = detail;
+  left.append(n, d);
+  const right = document.createElement('div');
+  right.className = 'flex flex-wrap items-center gap-space-sm ml-auto';
+  for (const [text, go, danger] of actions) {
+    const b = document.createElement('button');
+    b.className = 'btn' + (danger ? ' btn-danger' : '');
+    b.textContent = text;
+    b.onclick = go;
+    right.append(b);
+  }
+  row.append(left, right);
+  return row;
+}
+async function limitRun(args, done) {
+  const { rc, err } = await runAyis(['limits', ...args], { wantRc: true });
+  if (rc === 0) note(done, 'text-primary');
+  else note(`Not changed: ${(err || '').trim().split('\n').pop() || 'ayis limits failed'}`, 'text-error');
+}
+function paintLimits(d) {
+  limitsNow = d;
+  const box = $('g-limit-rows');
+  if (!box) return;
+  box.textContent = '';
+  const m = d.month || {};
+  const h = x => (Math.round(x * 10) / 10).toLocaleString();
+  const resets = d.month_resets ? new Date(d.month_resets).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'the 1st';
+  const addHours = n => [`+${n} hours`, () => limitRun(['extend-month', String(n)], `Added ${n} hours to this month`)];
+  if (d.month_error) {
+    box.append(limitRow('Play hours this month: unknown', d.month_error, 'bad', []));
+  } else if (!m.cap_hours) {
+    box.append(limitRow(`Play hours this month: ${h(m.used_hours || 0)}`, 'No monthly limit is set.', '', []));
+  } else {
+    const extra = m.extra_hours ? ` (${h(m.extra_hours)} added this month)` : '';
+    box.append(limitRow(
+      m.reached ? `This month's ${h(m.cap_hours)} hours are used up` : `Play hours this month: ${h(m.used_hours)} of ${h(m.cap_hours)}`,
+      m.reached ? `No machine starts until ${resets}, unless you add hours.${extra}`
+        : `${h(m.left_hours)} hours left${extra}. Resets ${resets}.`,
+      m.reached ? 'bad' : '', [addHours(5), addHours(20)]));
+  }
+  const sessions = d.sessions || [];
+  if (!d.session_hours) {
+    box.append(limitRow('Session limit: off', 'A session can run as long as you play.', '', []));
+  } else if (!sessions.length) {
+    box.append(limitRow(`Session limit: ${d.session_hours} hours`, 'Counts from when the machine starts.', '', []));
+  }
+  for (const s of sessions) {
+    const at = new Date(s.ends).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    box.append(limitRow(`Session ends at ${at}`, `${s.left_minutes} min left. You get a phone alert ${d.warn_minutes} min before.`,
+      s.left_minutes <= d.warn_minutes ? 'bad' : '',
+      [['+1 hour', () => limitRun(['extend-session', '1'], 'Session extended by 1 hour')],
+       ['+3 hours', () => limitRun(['extend-session', '3'], 'Session extended by 3 hours')]]));
+  }
+  if (d.budget_error) {
+    box.append(limitRow('Budget block: unknown', d.budget_error, 'bad', []));
+  } else if (d.budget_blocked) {
+    box.append(limitRow('Budget spent: machines are blocked',
+      'AWS reports this month\'s budget as used up, so no machine can start.', 'bad',
+      [['Unblock', async () => {
+        if (await askConfirm({ title: 'Unblock until next month?',
+          body: 'Machines can start again, and AWS will not block them again this month, so spending beyond the budget is possible. The hour limits still apply.',
+          yes: 'Unblock', danger: true })) limitRun(['unblock'], 'Budget block lifted until next month');
+      }, true]]));
+  } else if (d.budget_armed === false) {
+    box.append(limitRow('Budget block: not set up',
+      'Set it up so that when this month\'s budget is used up, AWS stops new machines from starting and the running one is switched off.', 'bad',
+      [['Set up', () => limitRun(['arm'], 'Budget block set up')]]));
+  } else {
+    box.append(limitRow('Budget block: ready',
+      'If this month\'s budget is used up, AWS stops new machines from starting and the running one is switched off.', '', []));
   }
 }
 
@@ -3270,12 +3359,15 @@ const SETTINGS_CARDS = [
 const PLAIN = { GAME_RES: 'Resolution', GAME_FPS: 'Frame rate', GAME_BITRATE_KBPS: 'Quality',
                 GAME_DISK_GB: 'System disk',
                 GAME_BUDGET_INR: 'Monthly budget', EMAIL_ALERTS: 'Alert email',
+                GAME_MAX_HOURS_MONTH: 'Play hours a month', GAME_MAX_SESSION_HOURS: 'Session limit',
                 GAME_WATCHDOG_IDLE_MIN: 'Stop after idle', GAME_WATCHDOG_STUCK_MIN: 'Force stop after',
                 GAME_NTFY_URL: 'Phone alerts' };
 const PLAIN_NOTE = {
   GAME_RES: 'e.g. 1920x1080. Empty uses Moonlight default.',
   GAME_DISK_GB: 'Applies at next build. Cannot be reduced later.',
-  GAME_BUDGET_INR: 'Email alert only. Nothing is stopped.',
+  GAME_BUDGET_INR: 'Emails at 80%. Once spent, the machine switches off and cannot start until you unblock it or the month ends.',
+  GAME_MAX_HOURS_MONTH: 'Switches the machine off when the month\'s hours are used, even mid-game. 0 turns it off.',
+  GAME_MAX_SESSION_HOURS: 'Switches the machine off this long after it starts, even mid-game. 0 turns it off.',
   EMAIL_ALERTS: 'Comma-separated.',
   GAME_WATCHDOG_IDLE_MIN: 'Idle time before auto-stop.',
   GAME_WATCHDOG_STUCK_MIN: 'Forces a stuck shutdown after this long.',
@@ -4863,7 +4955,7 @@ window.ayis.onEvent(({ id, event }) => {
                         config: paintConfig, status: paintStatus, machines: paintMachines,
                         sweep: paintSweep, creds: paintCreds, deps: paintDeps,
                         tskey: paintTskey, ping: paintPing, elsewhere: paintElsewhere,
-                        hosts: paintHosts }[job.json]
+                        hosts: paintHosts, limits: paintLimits }[job.json]
           || (job.json.startsWith('host:') && (d => paintHostStatus(job.json.slice(5), d)));
         if (!paint) throw new Error(`no painter for ${job.json}`);
         paint(data);
@@ -5002,7 +5094,7 @@ const awsInPlay = () => awsAdded() || adding === 'aws';
 const kindNow = () => adding || (awsAdded() ? 'aws' : 'host');
 // The reads that ask AWS. A laptop with no AWS machine never asks them: each
 // would come back "no key", and the pages would fill with it.
-const AWS_JSON = new Set(['status', 'guards', 'library', 'elsewhere', 'machines', 'sweep', 'cost']);
+const AWS_JSON = new Set(['status', 'guards', 'library', 'elsewhere', 'machines', 'sweep', 'cost', 'limits']);
 const forMode = reads => (reads && !awsInPlay() ? reads.filter(([, j]) => !AWS_JSON.has(j)) : reads);
 // The pages about the AWS machine alone, which leave the sidebar without one.
 // The Machine page is every machine's, AWS or yours.
@@ -5803,7 +5895,8 @@ const NEEDS = {
               [['library', 'elsewhere', '--json'], 'elsewhere']],
   // config too: the settings card is edited here, and a save has to come back
   // as the new value - the watcher alone left the old one showing.
-  guards:    [[['watcher', '--json'], 'guards'], [['config', '--json'], 'config']],
+  guards:    [[['watcher', '--json'], 'guards'], [['config', '--json'], 'config'],
+              [['limits', '--json'], 'limits']],
 };
 const loaded = new Set();
 
@@ -5826,7 +5919,7 @@ const READ_NAME = {
   elsewhere: 'Games in other regions',
   machines: 'Machine types and prices', sweep: 'Regions', config: 'Settings',
   creds: 'AWS key', tskey: 'Tailscale', deps: 'Local tools', cost: 'Exact cost this month',
-  hosts: 'Servers',
+  hosts: 'Servers', limits: 'Hard limits',
 };
 const readName = json => (json.startsWith('host:') ? json.slice(5) : READ_NAME[json] || json);
 // The top Refresh, as a popup: what is being read, each ticking as it lands,

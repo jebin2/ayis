@@ -24,7 +24,7 @@ type BudgetsAPI interface {
 	DeleteSubscriber(context.Context, *budgets.DeleteSubscriberInput, ...func(*budgets.Options)) (*budgets.DeleteSubscriberOutput, error)
 }
 
-// Budget arms the monthly budget. It is not a layer: it stops nothing, it tells
+// Budget arms the monthly budget. On its own it stops nothing, it tells
 // you. AWS Budgets rather than a CloudWatch EstimatedCharges alarm, which needs
 // two things a fresh account does not have: "Receive Billing Alerts" switched on
 // by the *root* user (no API for it), and an SNS subscription each recipient has

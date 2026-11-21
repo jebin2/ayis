@@ -41,6 +41,7 @@ on files beside the binary. Build it with `go build -o ayis ./cmd/ayis`.
 | `ayis ssh [cmd]` | Shell on the box - resolves the suffixed tailnet name for you |
 | `ayis watcher [--watch]` | Every guard, and whether each is genuinely armed - including what the cloud watchdog last decided, and when |
 | `ayis watcher --json` | The same guards as data: armed, what each catches, its last decision |
+| `ayis limits [status\|extend-month <hours>\|extend-session [hours]\|unblock\|arm]` | The hard cost limits: play hours this month, the session limit and the budget's block - where each stands, and the way past each. See [cost-guards.md](cost-guards.md#hard-limits) |
 | `ayis watchdog [status\|check\|logs\|install\|remove]` | The cloud watchdog: schedule and recent decisions; `check` runs it now as a dry run |
 | `ayis machines` | What GPU shapes this region rents, their specs, and what each costs on spot and on demand. Reads only; costs nothing |
 | `ayis machines --all` | The same, including shapes no quota covers |

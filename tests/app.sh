@@ -498,7 +498,7 @@ contains "  no disk is sized on a guess"  "$js" "unknown: true"
 check    "no exchange rate is guessed"    "$(grep -c 'inr_per_usd || 88' app/renderer/app.js)" "0"
 contains "cost projects the month"       "$js" "m.projected_usd"
 contains "  against the budget you set, in rupees" "$js" "Number(setting('GAME_BUDGET_INR', NaN))"
-contains "  which only emails"            "$js" "Email alert only. Nothing is stopped."
+contains "  which emails, then blocks"     "$js" "Emails at 80%. Once spent, the machine switches off"
 # Rupees only: the Cost page was the last one showing dollars beside them.
 lacks    "  no dollar column"             "$html" "TOTAL ($)"
 check    "  no dollar helper left"        "$(grep -c 'const money = ' app/renderer/app.js)" "0"

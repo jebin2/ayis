@@ -40,8 +40,10 @@ type AllDeps struct {
 	// RoleExists and WatchdogExists say whether those are there to remove.
 	RoleExists, WatchdogExists func(ctx context.Context) bool
 	RemoveWatchdog             func(ctx context.Context)
-	TS                         func(token string) tskey.Client
-	Pem                        string
+	// RemoveBlock deletes the budget block's policy and role. Nil skips it.
+	RemoveBlock func(ctx context.Context) error
+	TS          func(token string) tskey.Client
+	Pem         string
 }
 
 // destroyEverything is `ayis destroy --all`: the box AND every game you have.
@@ -226,6 +228,14 @@ func (d Deps) removeAll(ctx context.Context, x DestroyDeps, a AllDeps) (rc int, 
 	if _, err := a.Budgets.DeleteBudget(ctx, &budgets.DeleteBudgetInput{AccountId: aws.String(a.Account), BudgetName: aws.String(host + "-monthly")}); err != nil && !strings.Contains(err.Error(), "NotFound") {
 		failures = append(failures, "could not delete the budget")
 		d.Out.LogAs("fail", "could not delete the budget "+host+"-monthly")
+	}
+	// Its block went with it; the policy and the role it attached with are IAM's.
+	if a.RemoveBlock != nil {
+		d.Out.Say("removing the budget's block policy and role")
+		if err := a.RemoveBlock(ctx); err != nil {
+			failures = append(failures, "could not remove the budget's block")
+			d.Out.LogAs("fail", "could not remove the budget's block: "+err.Error())
+		}
 	}
 
 	// The security group cannot go until the terminated instance's network interface

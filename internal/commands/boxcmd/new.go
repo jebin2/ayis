@@ -17,9 +17,11 @@ import (
 	"github.com/jebin2/ayis/internal/ask"
 	"github.com/jebin2/ayis/internal/awscfg"
 	"github.com/jebin2/ayis/internal/box"
+	"github.com/jebin2/ayis/internal/commands/limitscmd"
 	"github.com/jebin2/ayis/internal/commands/watchdog"
 	"github.com/jebin2/ayis/internal/config"
 	"github.com/jebin2/ayis/internal/library"
+	"github.com/jebin2/ayis/internal/limits"
 	"github.com/jebin2/ayis/internal/local"
 	"github.com/jebin2/ayis/internal/output"
 	"github.com/jebin2/ayis/internal/session"
@@ -58,6 +60,7 @@ func New(ctx context.Context, get config.Lookup, env *config.Env, out *output.Ou
 		Player:      stream.Player{R: r, Get: env.Get, CacheDir: cache, Echo: out.Echo, Log: out.Log, Warn: func(t string) { out.LogAs("warn", t) }},
 		SessionFile: session.File(get, os.Getuid()), Probe: session.Proc{}, Now: time.Now, Moonlight: r.Has("moonlight"),
 		Takes:         func() string { return takes(cache) },
+		Limits:        func(ctx context.Context) string { return limitscmd.Check(ctx, env) },
 		MoonlightConf: filepath.Join(home, ".config", "Moonlight Game Streaming Project", "Moonlight.conf"),
 	}
 	return d, client, nil
@@ -124,6 +127,9 @@ func NewDestroyDeps(ctx context.Context, env *config.Env, client *ec2.Client, ou
 		},
 	}
 	all := &AllDeps{EC2: client, Budgets: budgets.NewFromConfig(us), Account: acct, W: store, Teardown: td,
+		RemoveBlock: func(ctx context.Context) error {
+			return limits.Block{IAM: iamc, Account: acct, Host: host}.Remove(ctx)
+		},
 		Scan: func(ctx context.Context) storage.Everywhere {
 			regions := []string{home}
 			if o, err := client.DescribeRegions(ctx, &ec2.DescribeRegionsInput{}); err == nil && len(o.Regions) > 0 {

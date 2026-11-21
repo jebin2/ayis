@@ -198,6 +198,12 @@ func (d Deps) Open(ctx context.Context) int {
 		if code := d.extraBeforeStart(ctx); code != 0 {
 			return code
 		}
+		// A hard limit says no: starting would bill a boot the watchdog then ends.
+		if d.Limits != nil {
+			if why := d.Limits(ctx); why != "" {
+				return d.die("not starting the machine: " + why)
+			}
+		}
 		d.Out.Echo("starting " + d.Box.ID + " ...")
 		if err := d.Box.Start(ctx); err != nil {
 			if strings.Contains(err.Error(), "VcpuLimitExceeded") {

@@ -123,6 +123,8 @@ func Set(env *config.Env, key, value string, out *output.Out) error {
 		out.LogAs("info", "applies to the next ayis init")
 	case "GAME_ARCHIVE_EXPIRY_DAYS", "GAME_WATCHDOG_IDLE_MIN", "GAME_WATCHDOG_STUCK_MIN", "GAME_NTFY_URL":
 		out.LogAs("info", "applies when the cloud watchdog is next deployed: ayis watchdog install")
+	case "GAME_MAX_HOURS_MONTH", "GAME_MAX_SESSION_HOURS":
+		out.LogAs("info", "enforced by the cloud watchdog, which is redeployed with it now if it is installed")
 	case "GAME_BUDGET_INR", "EMAIL_ALERTS":
 		out.LogAs("info", "applies at the next ayis init, which rewrites the budget")
 	}

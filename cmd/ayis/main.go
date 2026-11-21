@@ -25,6 +25,7 @@ import (
 	"github.com/jebin2/ayis/internal/commands/hostcmd"
 	"github.com/jebin2/ayis/internal/commands/initcmd"
 	"github.com/jebin2/ayis/internal/commands/librarycmd"
+	"github.com/jebin2/ayis/internal/commands/limitscmd"
 	"github.com/jebin2/ayis/internal/commands/machines"
 	"github.com/jebin2/ayis/internal/commands/notify"
 	"github.com/jebin2/ayis/internal/commands/quota"
@@ -337,6 +338,8 @@ func run(ctx context.Context, args []string, lookup config.Lookup, stdout, stder
 		return librarycmd.Run(ctx, config.Load(get, repoDir(get)), get, args, jsonFlag, out)
 	case "regions":
 		return regions.Run(ctx, config.Load(get, repoDir(get)), args, jsonFlag, out)
+	case "limits":
+		return limitscmd.Run(ctx, config.Load(get, repoDir(get)), args, jsonFlag, out)
 	case "quota":
 		return quota.Run(ctx, config.Load(get, repoDir(get)), get, args, jsonFlag, out)
 	case "sweep", "regions-sweep":
@@ -360,7 +363,16 @@ func run(ctx context.Context, args []string, lookup config.Lookup, stdout, stder
 	case "creds", "credentials":
 		return creds.Run(ctx, config.Load(get, repoDir(get)), args, jsonFlag, out)
 	case "config":
-		return configcmd.Run(config.Load(get, repoDir(get)), args, jsonFlag, out)
+		rc := configcmd.Run(config.Load(get, repoDir(get)), args, jsonFlag, out)
+		// A hard limit is enforced by the cloud watchdog, which carries it: a new
+		// figure takes effect now, not at the next build. Only an installed
+		// watchdog is redeployed - with none, the next build installs it with this.
+		if rc == 0 && len(args) >= 2 && args[0] == "set" && (args[1] == "GAME_MAX_HOURS_MONTH" || args[1] == "GAME_MAX_SESSION_HOURS") {
+			if r, err := watchdog.NewReader(ctx, config.Load(get, repoDir(get))); err == nil && r.Current(ctx).Installed {
+				return watchdog.Reinstall(ctx, config.Load(get, repoDir(get)), out)
+			}
+		}
+		return rc
 	case "ping":
 		return remote.RunPing(ctx, config.Load(get, repoDir(get)), args, jsonFlag, watchFlag, out)
 	case "log", "logs":
