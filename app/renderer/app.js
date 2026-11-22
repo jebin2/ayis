@@ -752,8 +752,43 @@ function renderMachineCard(card) {
     if (lines.length) { const n = el('p', 'font-code-sm text-code-sm text-on-surface-variant mt-space-sm', lines.join(' ')); n.dataset.f = 'stopnote'; card.append(n); }
   }
   if (note) { const n = el('p', 'font-code-sm text-code-sm text-outline mt-space-sm', note); n.dataset.f = 'note'; card.append(n); }
+  // The session limit, counting down: the cloud watchdog switches the machine
+  // off at this time even mid-game, so it is shown where you play from.
+  if (running && box.session_ends) {
+    const row = el('div', 'flex flex-wrap items-center justify-between gap-space-sm mt-space-sm');
+    const left = el('p', 'font-code-sm text-code-sm'); left.dataset.f = 'session';
+    left.dataset.ends = box.session_ends;
+    const more = el('button', 'btn', '+1 hour'); more.dataset.f = 'session-more';
+    more.onclick = async () => {
+      more.disabled = true;
+      await limitRun(['extend-session', '1'], 'Session extended by 1 hour');
+      more.disabled = false;
+      refresh();
+    };
+    row.append(left, more);
+    card.append(row);
+    tickSessions();
+  }
   return f;
 }
+
+// The watchdog warns this long before (limits.WarnMinutes).
+const SESSION_WARN_MIN = 30;
+// Every countdown to a session's end, redrawn each 15 s between reads: the time
+// it ends comes from `ayis status`, the minutes left from the clock here.
+function tickSessions() {
+  for (const n of document.querySelectorAll('[data-ends]')) {
+    const ends = Date.parse(n.dataset.ends);
+    if (!isFinite(ends)) continue;
+    const left = Math.max(0, Math.floor((ends - Date.now()) / 60000));
+    const at = new Date(ends).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const span = left >= 60 ? `${Math.floor(left / 60)} h ${left % 60} min` : `${left} min`;
+    n.textContent = left > 0 ? `Session limit: switches off at ${at} · ${span} left`
+                             : `Session limit reached: switching off now`;
+    n.className = 'font-code-sm text-code-sm ' + (left <= SESSION_WARN_MIN ? 'text-error' : 'text-on-surface-variant');
+  }
+}
+setInterval(tickSessions, 15000);
 
 // The whole card, buttons too, built once per page from one recipe, so the
 // two cannot be laid out differently. Ids keep the page's prefix: d- on Home,
@@ -4993,6 +5028,9 @@ window.ayis.onEvent(({ id, event }) => {
     if (job.json && job.json.startsWith('host:') && readFailures.has(job.json)) paintHostCards();
     // The AWS card on Home and Machine says why it has no answer, instead of staying a skeleton.
     if (job.json === 'status' && readFailures.has('status')) paintMachineCards();
+    // The Hard limits card too: it stayed on "Checking..." when its read failed.
+    if (job.json === 'limits' && readFailures.has('limits') && $('g-limit-rows'))
+      $('g-limit-rows').replaceChildren(limitRow('Hard limits: could not be read', readFailures.get('limits'), 'bad', []));
     // The read that judges a step that has just been done: it has answered, so
     // the step shows what it says - ticked, or back to what is still missing.
     if (onbVerifying && job.json && onbPending.has(job.json)) {

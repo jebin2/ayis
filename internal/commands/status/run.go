@@ -85,7 +85,7 @@ func Run(ctx context.Context, env *config.Env, get config.Lookup, opts Options, 
 		IAM: iam.NewFromConfig(cfg), Logs: cloudwatchlogs.NewFromConfig(cfg), Runner: local.Exec{}, Probe: session.Proc{},
 		Host: host, Node: node, Region: region, Type: env.Setting("GAME_INSTANCE_TYPE"), Bucket: env.Get("GAME_S3_BUCKET"),
 		Home: home, CacheDir: cacheDir, LockFile: session.File(get, os.Getuid()),
-		ExpiryDays: env.Int("GAME_ARCHIVE_EXPIRY_DAYS"), Now: time.Now,
+		ExpiryDays: env.Int("GAME_ARCHIVE_EXPIRY_DAYS"), SessionHours: env.Int("GAME_MAX_SESSION_HOURS"), Now: time.Now,
 		AuthKey: env.Get("TAILSCALE_AUTH_KEY") != "" || env.Get("GAME_TS_AUTHKEY") != "",
 	}
 	facts := g.Gather(ctx)

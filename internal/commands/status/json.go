@@ -73,6 +73,10 @@ func (v View) JSON() ([]byte, error) {
 		out["box"] = obj{"id": b.ID, "state": b.State, "type": b.Type, "public_ip": nz(b.PublicIP),
 			"launched": b.Launched.UTC().Format("2006-01-02T15:04:05+00:00"), "lifecycle": b.Lifecycle,
 			"az": nz(b.AZ), "disk_gb": nk(b.DiskGB), "built": b.Built, "ready": nk(b.Ready)}
+		// When the session limit switches it off - the app counts down to it.
+		if b.State == "running" && !b.SessionEnds.IsZero() {
+			out["box"].(obj)["session_ends"] = b.SessionEnds.UTC().Format("2006-01-02T15:04:05+00:00")
+		}
 		if b.State != "running" {
 			delete(out["box"].(obj), "ready")
 			delete(out["box"].(obj), "built")

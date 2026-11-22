@@ -32,6 +32,7 @@ import (
 	"github.com/aws/smithy-go"
 
 	"github.com/jebin2/ayis/internal/costfacts"
+	"github.com/jebin2/ayis/internal/limits"
 	"github.com/jebin2/ayis/internal/local"
 	"github.com/jebin2/ayis/internal/session"
 	"github.com/jebin2/ayis/internal/watchdog"
@@ -97,6 +98,7 @@ type Gatherer struct {
 	CacheDir                 string // XDG_CACHE_HOME/ayis
 	LockFile                 string
 	ExpiryDays               int
+	SessionHours             int // GAME_MAX_SESSION_HOURS; 0: no session limit
 	Now                      func() time.Time
 
 	AuthKey bool // a Tailscale auth key is set in .env; never its value
@@ -106,6 +108,9 @@ type Gatherer struct {
 type Box struct {
 	ID, State, Type, PublicIP, Lifecycle, AZ string
 	Launched                                 time.Time
+	// SessionEnds is when the cloud watchdog switches this run off: the session
+	// limit after launch, or later when it was extended. Zero with no limit.
+	SessionEnds time.Time
 	DiskGB                                   Known[int]
 	Built                                    bool
 	Ready                                    Known[bool] // unknown when it could not be asked
@@ -318,6 +323,9 @@ func (g *Gatherer) box(ctx context.Context) Known[*Box] {
 			}
 			if i.LaunchTime != nil {
 				b.Launched = *i.LaunchTime
+				if g.SessionHours > 0 {
+					b.SessionEnds = limits.Deadline(*i.LaunchTime, i.Tags, g.SessionHours)
+				}
 			}
 			if i.InstanceLifecycle == ec2types.InstanceLifecycleTypeSpot {
 				b.Lifecycle = "spot"

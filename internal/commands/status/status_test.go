@@ -57,6 +57,7 @@ type env struct {
 	ts          string
 	answers     map[string]string
 	fail        bool
+	sessionH    int
 }
 
 func newEnv(t *testing.T) *env {
@@ -82,7 +83,7 @@ func (e *env) gather(t *testing.T, s *fx.Scenario) View {
 		EC2: fx.EC2{S: s}, Quotas: fx.Quotas{S: s}, Budgets: fx.Budgets{S: s}, FreeTier: fx.FreeTier{S: s},
 		S3: fx.S3{S: s}, STS: fx.STS{S: s}, IAM: fx.IAM{S: s}, Logs: fx.Logs{S: s}, Runner: e.runner, Probe: probe{},
 		Host: host, Node: host, Region: "ap-south-2", Type: "g6.xlarge", Bucket: s.Bucket, Home: e.home, CacheDir: e.cache,
-		LockFile: filepath.Join(e.home, "ayis-session.pid"), ExpiryDays: 14, Now: func() time.Time { return now },
+		LockFile: filepath.Join(e.home, "ayis-session.pid"), ExpiryDays: 14, SessionHours: e.sessionH, Now: func() time.Time { return now },
 		AuthKey: true,
 	}
 	f := g.Gather(context.Background())
@@ -195,6 +196,11 @@ func TestARunningBox(t *testing.T) {
 	j = jq(t, e.gather(t, s))
 	eq(t, "seen ready once: ready without asking again", at(j, "box.ready"), true)
 	eq(t, "and built", at(j, "box.built"), true)
+
+	eq(t, "no session limit: no end", at(j, "box.session_ends"), nil)
+	e.sessionH = 6
+	eq(t, "the session limit counts from launch", at(jq(t, e.gather(t, s)), "box.session_ends"), "2026-09-26T16:00:00+00:00")
+	e.sessionH = 0
 
 	running(s, "")
 	eq(t, "no lifecycle is on-demand", at(jq(t, e.gather(t, s)), "box.lifecycle"), "on-demand")
