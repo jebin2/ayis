@@ -11,4 +11,6 @@ regexes = [
   '''AKIA(NEWKEYNEWKEY5678|EXAMPLEEXAMPLE00|BADBADBADBAD9999|GOODGOODGOOD1234|IOSFODNN7EXAMPLE)''',
   # A variable name in the old Bash rates (the S3 price per GB-month), not a secret.
   '''CG_S3_USD_GB_MONTH''',
+  # The alphabet internal/journal's test redacts as a secret key.
+  '''abcdefghijklmnopqrstuvwxyzABCDEFGHIJ1234''',
 ]
