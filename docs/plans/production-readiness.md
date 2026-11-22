@@ -15,7 +15,7 @@ Ayis is not a web service. It is three programs that run in three places and mus
 
 | Part | Where it runs | Size today |
 |---|---|---|
-| `ayis` CLI (Go) | the user's laptop | ~30,300 lines + ~16,000 lines of tests, 63 packages |
+| `ayis` CLI (Go) | the user's laptop | ~30,300 lines + ~16,000 lines of tests, 57 packages |
 | Desktop app (Electron) | the user's laptop | `app/renderer/app.js` is **one file of 8,678 lines**, 290 functions |
 | Cloud watchdog (Python Lambda) | the user's AWS account | `lambda/cloud_watchdog.py`, **one file of 1,312 lines** |
 | Box scripts (Bash) | the rented GPU machine | `host/` and `lib/bootstrap.d/`, ~40 scripts |
