@@ -139,7 +139,35 @@ The Go code has four layers, and `internal/arch` holds them as tests the build r
 | `cmd/ayis` | the process: global flags, then one function per command, looked up by the names and aliases in `internal/contract` | anything |
 | `internal/commands/*` | one package per command: its flags, its output, its flow | building blocks; another command only along an edge listed in `internal/arch` |
 | `internal/*` (the building blocks) | boxes, limits, the archive, provisioning, pricing, settings | other building blocks - **never a command** |
-| `internal/awscfg` | the only place an AWS client is configured (region, test endpoint, no instance metadata) | the AWS SDK |
+| `internal/awscfg` | the only place an AWS client is configured (region, retries and deadlines, test endpoint, no instance metadata) | the AWS SDK |
+
+```mermaid
+flowchart LR
+  app["app/ (Electron)<br/>runs ayis, draws its JSON"] -->|"AYIS_JSON=1<br/>AYIS_RUN_ID"| cmd["cmd/ayis<br/>flags, command table,<br/>log, keychain"]
+  cmd --> commands["internal/commands/*<br/>one per command"]
+  commands --> blocks["building blocks<br/>internal/*"]
+  commands -.->|"listed edges only"| commands
+  blocks --> awscfg["internal/awscfg<br/>retries, deadlines"]
+  awscfg --> aws[("AWS")]
+  blocks -->|"ssh over Tailscale"| box["the box<br/>host/, lib/bootstrap.d"]
+  blocks -->|"deploys (embed.go)"| lambda["lambda/ayis_watchdog"]
+  lambda --> aws
+```
+
+**Where things are** - the building blocks, by what they are about:
+
+| Concern | Packages |
+|---|---|
+| Settings and secrets | `config` (`.env`, the registry), `accountcfg` (account settings in SSM), `keychain` (the OS store) |
+| Talking to a person | `output` (lines and events), `fault` (what an error means), `journal` (the local log), `ask`, `format` |
+| AWS, shared | `awscfg`, `awspolicy` (the least-privilege policy), `ec2find` (a host's machines, by tag) |
+| The machine | `provision` (launch), `render` (the build script), `build`, `box` (its lifecycle), `destroy`, `sshkey`, `session`, `stream`, `sunshine`, `tailnet`, `tskey` |
+| Games | `library`, `bucket` |
+| Everything of ayis's in an account | `inventory` (what a disconnect removes), `storage` (leftovers in every region), `teardown` (all but the box) |
+| Money | `pricing`, `costfacts`, `costdaily`, `costreport`, `limits` |
+| The cloud watchdog | `watchdog` (deploy, read, roll back, the heartbeat) |
+| This computer, and machines of your own | `laptop`, `local`, `hosts`, `ownhost` |
+| Contracts and rules | `contract` (commands and events the app reads), `arch` (these layer rules, as tests), `testfixture` (fakes) |
 
 The rules, each a test in `internal/arch/arch_test.go`:
 
@@ -425,45 +453,47 @@ allowances. The full list: [cost-guards.md](cost-guards.md#notifications).
 
 ## Key decisions
 
+Each is recorded, with what forced it and what would change it, in [docs/adr](adr/README.md).
+
 ### Access and display
 
-- **Tailscale is the only way in.** Each machine gets a stable `100.x` address that survives the
+- **Tailscale is the only way in.** ([ADR-0006](adr/0006-tailscale-is-the-only-way-in.md)) Each machine gets a stable `100.x` address that survives the
   AWS public IP changing, so there is no Elastic IP to pay for. The single inbound rule, UDP 41641,
   is what lets Tailscale build a direct path: without it, traffic falls back to a relay at
   43-71 ms instead of 16 ms, and nothing errors - it just feels slow.
-- **A monitor that does not exist.** The L4 has no display outputs, so `xorg.conf` starts X with
+- **A monitor that does not exist.** ([ADR-0007](adr/0007-stream-from-a-gpu-with-no-screen.md)) The L4 has no display outputs, so `xorg.conf` starts X with
   `AllowEmptyInitialConfiguration` and a virtual `DFP-0` at a fixed 1920x1080. LightDM logs in
   automatically so there is a desktop to capture.
-- **The resolution never changes.** Switching the X mode at runtime left capture broken for every
+- **The resolution never changes.** ([ADR-0007](adr/0007-stream-from-a-gpu-with-no-screen.md)) Switching the X mode at runtime left capture broken for every
   later session, so the box stays at 1920x1080 and Moonlight scales. See
   [streaming.md](streaming.md).
-- **X11 capture, GPU encode.** NvFBC is NVIDIA's fast capture path, but it failed after the first
+- **X11 capture, GPU encode.** ([ADR-0007](adr/0007-stream-from-a-gpu-with-no-screen.md)) NvFBC is NVIDIA's fast capture path, but it failed after the first
   session on this box. X11 capture grabs frames on the CPU - about one core at 1080p60 - while
   encoding still runs on the L4's NVENC.
-- **Sunshine tuned for the tunnel.** `packet_size = 1024` because Tailscale's MTU is 1280 and
+- **Sunshine tuned for the tunnel.** ([ADR-0007](adr/0007-stream-from-a-gpu-with-no-screen.md)) `packet_size = 1024` because Tailscale's MTU is 1280 and
   Sunshine's default of 1392 fragments into stutter; `csrf_allowed_origins` so its web UI accepts
   requests from the tailnet.
 
 ### Guards and shutdown
 
-- **Two watchdogs, and no CloudWatch alarm.** An alarm cannot take an EC2 action on
+- **Two watchdogs, and no CloudWatch alarm.** ([ADR-0008](adr/0008-two-watchdogs-no-cloudwatch-alarm.md)) An alarm cannot take an EC2 action on
   `NetworkIn + NetworkOut`, so it watched outbound traffic only and read a game download as an idle
   box; that forced it to be armed only during a session, where it duplicated the cloud watchdog. It
   was removed. The on-host watchdog is the fast one; the cloud watchdog survives the box being
   wedged. See [Flow 4](#flow-4---you-forget-the-box).
-- **A Lambda, not a machine to keep alive.** The cloud watchdog runs every 5 minutes on an IAM role,
+- **A Lambda, not a machine to keep alive.** ([ADR-0009](adr/0009-a-stateless-lambda-watchdog.md)) The cloud watchdog runs every 5 minutes on an IAM role,
   and its idle decision keeps no state: every run reads the last 30 minutes of metrics rather than
   counting idle checks, so a missed run cannot corrupt a counter and a dry run
   (`ayis watchdog check`) changes nothing. What it does keep - the archive's last-seen mark, and
   which notices it has already sent - is a free SSM parameter or a tag. It replaced a watchdog on an always-on VPS that needed a long-lived AWS key.
-- **Every guard ends in the same graceful shutdown.** Terminating through the API gives the OS its
+- **Every guard ends in the same graceful shutdown.** ([ADR-0010](adr/0010-every-guard-ends-in-one-graceful-shutdown.md)) Terminating through the API gives the OS its
   shutdown, where the games are mirrored to S3 with up to 30 minutes (`TimeoutStopSec=1800`). A box
   still going down an hour later is forced, whichever guard started it - by then the upload has had
   its window.
-- **One upload at a time.** `ayis-library push` takes a lock and a second push waits, so a shutdown
+- **One upload at a time.** ([ADR-0010](adr/0010-every-guard-ends-in-one-graceful-shutdown.md)) `ayis-library push` takes a lock and a second push waits, so a shutdown
   push that starts while a watchdog push is running resumes from what the first landed instead of
   racing it and rewriting `index.json` from a stale copy.
-- **Where the limits come from.**
+- **Where the limits come from.** ([ADR-0010](adr/0010-every-guard-ends-in-one-graceful-shutdown.md)) The hard limits on top of these: [ADR-0022](adr/0022-hard-limits-enforced-by-the-watchdog.md).
 
   | Limit | Default | Set by |
   |---|---|---|
@@ -476,27 +506,27 @@ allowances. The full list: [cost-guards.md](cost-guards.md#notifications).
 
 ### Storage and cost
 
-- **Cost first.** Everything added around the box fits inside AWS's free allowances, and anything
+- **Cost first.** ([ADR-0011](adr/0011-cost-first.md)) Everything added around the box fits inside AWS's free allowances, and anything
   that would bill is designed out rather than accepted as small: the archive-expiry marks are free
   SSM parameters rather than bucket tags, and the archive's size comes from S3's free daily
   CloudWatch metric rather than an S3 request. With no box, the S3 archive is the only charge ayis
   means to leave. A disk, image or snapshot still there is a leftover, and `ayis cost` names it with
   its monthly cost; an Elastic IP is listed too, though ayis never makes one.
-- **Games on local NVMe, kept in S3.** The instance store is the fastest disk on the box and free,
+- **Games on local NVMe, kept in S3.** ([ADR-0012](adr/0012-games-on-local-nvme-kept-in-s3.md)) The instance store is the fastest disk on the box and free,
   and S3 pins no availability zone. It replaced an EBS volume costing INR 1,284 a month. See
   [game-library.md](game-library.md).
-- **One-time spot that terminates.** With the games in S3 there is nothing on the box worth
+- **One-time spot that terminates.** ([ADR-0013](adr/0013-one-time-spot-that-terminates.md)) With the games in S3 there is nothing on the box worth
   keeping, so every guard terminates rather than stops:
 
   | Purchase model | On shutdown | Why |
   |---|---|---|
   | on demand (`GAME_SPOT=0`) | `stop` | a misfiring watchdog parks the box and you restart it |
   | spot (default) | `terminate` | a stopped spot box can never start again, and its root disk would bill forever |
-- **The archive expires, and errs towards keeping.** After 14 days with no box, the cloud watchdog
+- **The archive expires, and errs towards keeping.** ([ADR-0014](adr/0014-the-archive-expires-and-errs-towards-keeping.md)) After 14 days with no box, the cloud watchdog
   deletes the archive - but only when two independent records agree it is unused (its last-seen
   mark and CloudTrail's launch history), and any error, gap or unreadable answer keeps it. See
   [Flow 5](#flow-5---nobody-plays-for-two-weeks).
-- **Roles, not keys.** The box reads and writes its bucket through an instance role, and the
+- **Roles, not keys.** ([ADR-0015](adr/0015-roles-not-keys.md)) The box reads and writes its bucket through an instance role, and the
   cloud watchdog runs on a Lambda role allowed only to describe, tag, stop or terminate the
   `ayis`-tagged instance - plus, while archive expiry is on, its own marks and the one archive
   bucket. Nothing holds a long-lived AWS secret. See
@@ -504,15 +534,15 @@ allowances. The full list: [cost-guards.md](cost-guards.md#notifications).
 
 ### Automation and notifications
 
-- **Tailscale through its API.** With `TAILSCALE_API_KEY`, `ayis init` prunes offline nodes of earlier
+- **Tailscale through its API.** ([ADR-0016](adr/0016-tailscale-through-its-api.md)) With `TAILSCALE_API_KEY`, `ayis init` prunes offline nodes of earlier
   boxes before launch and turns off key expiry on the new one. The new box is recognised by its node
   key, not its name: a pruned node's name is free for the next box to take. A rejected token turns
   both into manual steps rather than stopping the build. See [Flow 1](#flow-1---ayis-init-build-a-box).
-- **Notifications are never load-bearing.** ntfy is optional (`GAME_NTFY_URL`), a send that fails is
+- **Notifications are never load-bearing.** ([ADR-0017](adr/0017-notifications-are-never-load-bearing.md)) ntfy is optional (`GAME_NTFY_URL`), a send that fails is
   logged and ignored, and no guard's decision depends on one. The box cannot report its own end, so
   "box gone" comes from EC2's own events. The topic is a secret: `ayis` never prints it. See
   [Notifications](#notifications---what-reaches-your-phone).
-- **`ayis init` ends with a summary, not chores.** Pairing and key expiry happen on their own, so the
+- **`ayis init` ends with a summary, not chores.** ([ADR-0018](adr/0018-init-ends-with-a-summary.md)) Pairing and key expiry happen on their own, so the
   build ends with what the box has - Steam login and games checked on the box itself - and lists a
   step only when one is genuinely left. The Sunshine password is never printed; it stays in `.env`.
 

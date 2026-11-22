@@ -117,7 +117,7 @@ It used to print AWS's message and then every cause it knew, 25 lines of them. O
 the real error scrolled off the top; in the desktop app every one of those lines arrived as an
 ordinary continuation line, indistinguishable from build progress, so a failed build reported
 itself as the words "stopped (exit 1)" and nothing else. The classifier lives in
-[lib/launch-error.sh](../lib/launch-error.sh) and is tested in `tests/launch-error.sh`.
+[internal/provision/launcherror.go](../internal/provision/launcherror.go) and is tested in `launcherror_test.go` beside it.
 
 The `!! ` prefix is a marker, not decoration: `ayis_relay` turns it into a `fail` event, and the
 app shows that line and everything under it in a panel above the log. Any relayed script can

@@ -1,6 +1,7 @@
 # Production readiness plan
 
-Status: **proposed** - nothing here is started. Branch: `production-plan`.
+Status: **done, 2026-11-22** - every phase P0-P10 is merged into `main`. What is left needs the
+owner or a paid session; it is listed under [What is still open](#what-is-still-open).
 
 This plan takes Ayis from "works well for its author" to a codebase that strangers can install,
 trust with an AWS account, and that other people can change safely. It is not a rewrite and not
@@ -480,6 +481,15 @@ the next real tag proves it end to end.
 
 **Exit:** every "Key decisions" bullet in `architecture.md` links to an ADR.
 
+**Done (2026-11-22).** 17 ADRs backfilled (0006-0022), so 22 decisions are recorded - among them
+the plan's own list: Ubuntu over NixOS, Proton not mirrored, the CloudWatch alarm removed, no new
+game at build, the box found by its tag, hard limits enforced by the watchdog. All 18 "Key
+decisions" bullets link to their ADR. `docs/architecture.md` has a diagram of the layers and a map
+of the building blocks by concern. `CONTRIBUTING.md` covers set-up, testing, linting, changing and
+releasing; `docs/runbooks/` has the four runbooks. The README stays short and links to the rest.
+`tests/docs.sh` checks it holds together: every key decision has its ADR, every ADR is indexed,
+and every relative link resolves - it found three broken ones, now fixed.
+
 ---
 
 ## 6. Sequence and milestones
@@ -493,6 +503,23 @@ the next real tag proves it end to end.
 
 Reddit beta testers can start at any time; M1 should land before the beta grows past a few
 people, because W1 will bite anyone with two computers.
+
+## What is still open
+
+Each needs the owner, or money spent on a live test:
+
+1. **`GUARD_EXTRA`** - the repository secret holding a regex of the owner's own identifiers (email,
+   Steam name) was never set, so CI checks key shapes but not them: `gh secret set GUARD_EXTRA`.
+2. **One live session** proves three exits at once: a fresh IAM user with only `ayis aws policy`
+   runs `init -> open -> destroy` (P6); one run id followed end to end (P7); the watchdog
+   redeployed with this version's code (P4, P9).
+3. **The next real tag** proves the release needs nothing by hand but Publish (P9).
+4. **Coverage** is 66.8% overall (65.9% before P4-P9; the plan aimed at 75%); `local`, `limitscmd`, `cmd/ayis` and
+   other commands are the thin ones (P0, P5).
+5. **Report-only linters**: Go (errcheck and others), ShellCheck and a few JS warnings have old
+   findings; each blocks once clean (P0). `tests/app.sh` still has ~300 source-text checks to turn
+   into behaviour tests (P3).
+6. Not measured: the app's memory after an hour, and a stopped machine's restart to playable (P8).
 
 ## 7. Decisions needed from you before starting
 

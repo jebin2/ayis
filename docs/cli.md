@@ -64,4 +64,4 @@ Moonlight's own log is at `~/.cache/ayis/moonlight.log`.
     ./ayis log --run <id>            # one action's lines: this computer's log and the cloud watchdog's
     ./ayis doctor                    # is everything working: key, Tailscale, watchdog, budget, keychain
 
-Every command: [docs/commands.md](docs/commands.md).
+Every command: [docs/commands.md](commands.md).
