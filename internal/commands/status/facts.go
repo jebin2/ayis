@@ -111,9 +111,9 @@ type Box struct {
 	// SessionEnds is when the cloud watchdog switches this run off: the session
 	// limit after launch, or later when it was extended. Zero with no limit.
 	SessionEnds time.Time
-	DiskGB                                   Known[int]
-	Built                                    bool
-	Ready                                    Known[bool] // unknown when it could not be asked
+	DiskGB      Known[int]
+	Built       bool
+	Ready       Known[bool] // unknown when it could not be asked
 }
 
 // Archive is the games in S3 and the Steam login beside them.
