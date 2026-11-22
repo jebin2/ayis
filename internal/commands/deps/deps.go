@@ -133,7 +133,7 @@ func Run(ctx context.Context, l laptop.Laptop, args []string, jsonFlag bool, out
 	if jsonFlag {
 		b, err := JSON(Read(ctx, l))
 		if err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 		fmt.Fprintf(out.Stdout, "%s\n", b)

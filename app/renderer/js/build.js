@@ -1291,6 +1291,9 @@ function buildLine(event) {
 window.ayis.onEvent(({ id, event }) => {
   const job = jobs.get(id);
   if (!job) return;
+  // An error comes with what to do about it (internal/fault): said after its
+  // words, as the CLI says it on the next line.
+  if (event.t === 'error' && event.text && event.hint) event = { ...event, text: event.text + ' ' + event.hint };
   logLine(event);
   if (job.cmd[0] === 'open') restoreOnEvent(event);
   if (event.t === 'save') saveOnEvent(event);

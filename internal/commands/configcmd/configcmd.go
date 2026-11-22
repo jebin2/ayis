@@ -177,7 +177,7 @@ func Run(env *config.Env, args []string, jsonFlag bool, out *output.Out, share S
 			value = args[1]
 		}
 		if err := Set(env, args[0], value, out, share); err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 		return 0
@@ -188,7 +188,7 @@ func Run(env *config.Env, args []string, jsonFlag bool, out *output.Out, share S
 		}
 		v, err := Get(env, args[0])
 		if err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 		fmt.Fprintf(out.Stdout, "%s\n", v)
@@ -201,7 +201,7 @@ func Run(env *config.Env, args []string, jsonFlag bool, out *output.Out, share S
 func printJSON(env *config.Env, out *output.Out) int {
 	b, err := JSON(env)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	fmt.Fprintf(out.Stdout, "%s\n", b)

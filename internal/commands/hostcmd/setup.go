@@ -79,7 +79,7 @@ func (d Deps) Setup(ctx context.Context, args []string, out *output.Out) int {
 	case errors.As(err, &dd):
 		out.Die(string(dd))
 	default:
-		out.Die(err.Error())
+		out.Fail(err)
 	}
 	return 1
 }

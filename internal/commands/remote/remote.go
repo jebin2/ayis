@@ -89,7 +89,7 @@ func (b Box) Log(ctx context.Context, what string, watch bool, w io.Writer, out 
 	}
 	ip, err := b.SSHIP(ctx)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	if err := b.Runner.Stream(ctx, w, "ssh", b.sshArgs(ip, command)...); err != nil && ctx.Err() == nil {
@@ -103,7 +103,7 @@ func (b Box) Log(ctx context.Context, what string, watch bool, w io.Writer, out 
 func (b Box) SSH(ctx context.Context, args []string, out *output.Out) int {
 	ip, err := b.SSHIP(ctx)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	if len(args) > 0 {
@@ -150,7 +150,7 @@ func MedianMS(output string) int {
 func (b Box) Ping(ctx context.Context, jsonOut, watch bool, w io.Writer, out *output.Out) int {
 	ip, err := b.IP(ctx)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	if watch {

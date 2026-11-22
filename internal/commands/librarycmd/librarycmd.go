@@ -149,14 +149,14 @@ func Run(ctx context.Context, env *config.Env, get config.Lookup, args []string,
 	}
 	r, err := New(ctx, env, get)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	switch sub {
 	case "forget", "clean", "reset", "keep", "keep-for", "move":
 		c, err := NewChanger(ctx, r, env, out)
 		if err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 		switch sub {
@@ -218,7 +218,7 @@ func Run(ctx context.Context, env *config.Env, get config.Lookup, args []string,
 		case "forget", "delete", "rm":
 			c, err := NewChanger(ctx, r, env, out)
 			if err != nil {
-				out.Die(err.Error())
+				out.Fail(err)
 				return 1
 			}
 			return c.ForgetLogin(ctx, args[1:], fileCache{r.CacheDir})
@@ -246,7 +246,7 @@ func Run(ctx context.Context, env *config.Env, get config.Lookup, args []string,
 func emit(v any, out *output.Out) int {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	fmt.Fprintf(out.Stdout, "%s\n", b)

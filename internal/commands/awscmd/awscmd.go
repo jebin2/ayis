@@ -54,7 +54,7 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 	}
 	inv, err := newInventory(ctx, env)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	plan := sub == "inventory" || (len(args) > 0 && args[0] == "--plan")
@@ -68,7 +68,7 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 	}
 	d, err := newDisconnector(ctx, env, inv, out)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	return d.Run(ctx)

@@ -25,7 +25,7 @@ func runForget(ctx context.Context, env *config.Env, args []string, out *output.
 	region, host := env.Region(), env.Host()
 	cfg, err := awscfg.New(ctx, region)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	b := box.Box{EC2: ec2.NewFromConfig(cfg), ID: env.Get("GAME_INSTANCE_ID"), Host: host}
@@ -38,7 +38,7 @@ func runForget(ctx context.Context, env *config.Env, args []string, out *output.
 	}
 	inv, err := newInventory(ctx, env)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	f.Games = func(ctx context.Context) (int, error) {
@@ -75,12 +75,12 @@ func newDisconnector(ctx context.Context, env *config.Env, inv inventory.Invento
 		client := ec2.NewFromConfig(cfg)
 		bd, _, err := boxcmd.New(ctx, get, env, out)
 		if err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 		x, err := boxcmd.NewDestroyDeps(ctx, env, client, out)
 		if err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 		return bd.DestroyBox(ctx, x, []string{"--all", "--force"})

@@ -25,12 +25,12 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 	}
 	cfg, err := awscfg.New(ctx, env.Region())
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	us, err := awscfg.New(ctx, "us-east-1") // the Account API is global
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	acct := account.NewFromConfig(us)
@@ -68,7 +68,7 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 func emit(v any, out *output.Out) int {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	fmt.Fprintf(out.Stdout, "%s\n", b)

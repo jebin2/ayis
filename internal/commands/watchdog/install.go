@@ -117,7 +117,7 @@ func mutate(ctx context.Context, env *config.Env, r *wd.Reader, sub string, out 
 			out.Log("cannot reach AWS - the cloud watchdog was not installed")
 			out.Die("the cloud watchdog was not installed")
 		} else {
-			out.Die(err.Error())
+			out.Fail(err)
 		}
 		return 1
 	}

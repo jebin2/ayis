@@ -42,17 +42,17 @@ func Run(ctx context.Context, env *config.Env, opts Options, out *output.Out) in
 	region := env.Region()
 	cfg, err := awscfg.New(ctx, region)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	us, err := awscfg.New(ctx, "us-east-1")
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	reader, err := watchdog.NewReader(ctx, env)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	home, _ := os.UserHomeDir()
@@ -85,7 +85,7 @@ func Run(ctx context.Context, env *config.Env, opts Options, out *output.Out) in
 	if opts.JSON {
 		b, err := w.JSON(f, time.Now())
 		if err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 		fmt.Fprintf(out.Stdout, "%s\n", b)

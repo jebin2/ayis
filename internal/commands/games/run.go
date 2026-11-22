@@ -41,7 +41,7 @@ func Run(ctx context.Context, env *config.Env, args []string, out *output.Out) i
 	box := remote.New(env)
 	ip, err := box.SSHIP(ctx)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	raw, err := box.Runner.Output(ctx, "ssh", box.SSHArgs(ip, remoteScript)...)
@@ -68,7 +68,7 @@ func Run(ctx context.Context, env *config.Env, args []string, out *output.Out) i
 	if asJSON {
 		b, err := JSON(ParseBox(string(raw)), archived)
 		if err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 		fmt.Fprintf(out.Stdout, "%s\n", b)
@@ -92,7 +92,7 @@ func runVolume(ctx context.Context, env *config.Env, args []string, out *output.
 	}
 	cfg, err := awscfg.New(ctx, env.Region())
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	v, err := FindVolume(ctx, ec2.NewFromConfig(cfg), env.Host())

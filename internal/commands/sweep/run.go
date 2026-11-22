@@ -75,7 +75,7 @@ func Run(ctx context.Context, env *config.Env, get config.Lookup, args []string,
 
 	us, err := awscfg.New(ctx, "us-east-1")
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	region := env.Region()
@@ -97,7 +97,7 @@ func Run(ctx context.Context, env *config.Env, get config.Lookup, args []string,
 func printJSON(v any, out *output.Out) int {
 	b, err := json.Marshal(v)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	fmt.Fprintf(out.Stdout, "%s\n", b)

@@ -153,7 +153,7 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 	}
 	c, err := connect(ctx, env)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	host, now := env.Host(), time.Now()
@@ -161,7 +161,7 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 	case "extend-month":
 		h, err := hoursArg(rest, 0)
 		if err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 		total, err := limits.ExtendMonth(ctx, c.ssm, host, h, now)
@@ -173,7 +173,7 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 	case "extend-session":
 		h, err := hoursArg(rest, 1)
 		if err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 		ms, err := limits.Machines(ctx, c.ec2, host)
@@ -202,7 +202,7 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 		}
 		p, err := limits.PrincipalOf(aws.ToString(id.Arn))
 		if err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 		var to []string
@@ -221,7 +221,7 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 		}
 		b := limits.Block{IAM: c.iam, Budgets: c.budgets, Account: c.account, Host: host, Out: out.Log, Sleep: time.Sleep}
 		if err := b.Arm(ctx, p, to); err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 	}

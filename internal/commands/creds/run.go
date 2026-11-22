@@ -115,7 +115,7 @@ func rc(ok bool) int {
 func emit(v any, out *output.Out) int {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	fmt.Fprintf(out.Stdout, "%s\n", b)

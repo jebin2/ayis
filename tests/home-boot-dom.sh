@@ -75,7 +75,7 @@ window.ayis = {
       if (r.held) {
         window.__release[r.held] = ok => {
           if (ok) emit(id, { t: 'raw', stream: 'stdout', text: JSON.stringify(STATUS) });
-          else emit(id, { t: 'error', text: 'attic did not answer over ssh' });
+          else emit(id, { t: 'error', text: 'attic did not answer over ssh', class: 'again', hint: 'Try again in a minute.' });
           emit(id, { t: 'exit', rc: ok ? 0 : 1 });
         };
         return;
@@ -184,6 +184,7 @@ contains "a failed check says so"                 "$(row 'FAILED')" "Check faile
 contains "  with ayis's reason"                     "$(row 'FAILED')" "attic did not answer over ssh"
 check    "  and only Try again, and its details"  "$(row 'FAILED BUTTONS' | tr -cd '[:print:]')" "FAILED BUTTONS | Try again, Details"
 lacks    "  the reason, not a prefix"            "$(row 'FAILED')" "could not run:"
+contains "  and what to do about it (fault.Hint)" "$(row 'FAILED')" "attic did not answer over ssh Try again in a minute."
 
 echo "4. what is remembered for next time"
 check    "the list and what each is, never a status" "$(row 'KEPT')" "KEPT | homebox,attic gpu=NVIDIA GeForce RTX 3070 status=false"

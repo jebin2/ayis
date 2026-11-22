@@ -2,10 +2,14 @@ package output
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jebin2/ayis/internal/fault"
 )
 
 func out(json bool) (*Out, *bytes.Buffer) {
@@ -226,5 +230,23 @@ func TestAPartIsAnEventForAScreenAndNothingInATerminal(t *testing.T) {
 	got := e.String()
 	if !strings.Contains(got, `"t":"part"`) || !strings.Contains(got, `"id":"nvidia"`) || strings.Count(got, `"state":"done"`) != 1 {
 		t.Errorf("%q", got)
+	}
+}
+
+// An error says what to do about it, the same in both outputs.
+func TestFailSaysWhatToDo(t *testing.T) {
+	err := fmt.Errorf("listing buckets: %w", context.DeadlineExceeded)
+	o, e := out(false)
+	o.Fail(err)
+	want := "2026-10-25T18:30:02+05:30  error: listing buckets: context deadline exceeded\n       " + fault.Hint(err) + "\n"
+	if e.String() != want {
+		t.Errorf("plain: got %q want %q", e.String(), want)
+	}
+	o, e = out(true)
+	o.Fail(err)
+	var ev map[string]string
+	if json.Unmarshal(e.Bytes(), &ev) != nil || ev["t"] != "error" || ev["class"] != "again" || ev["hint"] != fault.Hint(err) ||
+		ev["text"] != "listing buckets: context deadline exceeded" {
+		t.Errorf("event: %s", e.String())
 	}
 }

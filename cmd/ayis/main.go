@@ -102,7 +102,7 @@ func run(ctx context.Context, args []string, lookup config.Lookup, stdout, stder
 		case "--contract":
 			b, err := contract.JSON()
 			if err != nil {
-				out.Die(err.Error())
+				out.Fail(err)
 				return 1
 			}
 			fmt.Fprintf(stdout, "%s\n", b)

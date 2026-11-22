@@ -109,7 +109,7 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 	}
 	cfg, err := awscfg.New(ctx, env.Region())
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	imgs, err := List(ctx, ec2.NewFromConfig(cfg))

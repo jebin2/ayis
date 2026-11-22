@@ -77,13 +77,13 @@ func Run(ctx context.Context, env *config.Env, get config.Lookup, args []string,
 	}
 	us, err := awscfg.New(ctx, "us-east-1")
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	products := pricing.SDKProducts{Client: awspricing.NewFromConfig(us)}
 	r, err := NewReader(ctx, region, get, products)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	rates := pricing.Load(ctx, pricing.Options{Getenv: env.Get, Source: pricing.AWSSource{API: products}}, env.Region())
@@ -95,7 +95,7 @@ func Run(ctx context.Context, env *config.Env, get config.Lookup, args []string,
 	if jsonFlag {
 		b, err := JSON(t)
 		if err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 		fmt.Fprintf(out.Stdout, "%s\n", b)

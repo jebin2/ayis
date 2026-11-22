@@ -69,7 +69,7 @@ func cmdSnapshot(cl *call) int {
 	case "create", "", "--no-wait":
 		d, _, err := boxcmd.New(cl.ctx, cl.get, cl.env(), cl.out)
 		if err != nil {
-			cl.out.Die(err.Error())
+			cl.out.Fail(err)
 			return 1
 		}
 		wait := true
@@ -82,7 +82,7 @@ func cmdSnapshot(cl *call) int {
 	case "--delete", "delete":
 		d, c, err := boxcmd.New(cl.ctx, cl.get, cl.env(), cl.out)
 		if err != nil {
-			cl.out.Die(err.Error())
+			cl.out.Fail(err)
 			return 1
 		}
 		id := ""
@@ -99,7 +99,7 @@ func cmdInit(cl *call) int {
 	env := cl.env()
 	i, err := initcmd.New(cl.ctx, cl.get, env, cl.out)
 	if err != nil {
-		cl.out.Die(err.Error())
+		cl.out.Fail(err)
 		return 1
 	}
 	return i.Run(cl.ctx)
@@ -116,7 +116,7 @@ func cmdOpen(cl *call) int {
 	}
 	d, c, err := boxcmd.New(cl.ctx, cl.get, env, cl.out)
 	if err != nil {
-		cl.out.Die(err.Error())
+		cl.out.Fail(err)
 		return 1
 	}
 	// --extra-gb N --extra-apps 1,2: make a games disk and bring those games
@@ -141,7 +141,7 @@ func cmdStop(cl *call) int {
 	env := cl.env()
 	d, c, err := boxcmd.New(cl.ctx, cl.get, env, cl.out)
 	if err != nil {
-		cl.out.Die(err.Error())
+		cl.out.Fail(err)
 		return 1
 	}
 	d.WithDestroy(env, c)
@@ -152,12 +152,12 @@ func cmdDestroy(cl *call) int {
 	env := cl.env()
 	d, c, err := boxcmd.New(cl.ctx, cl.get, env, cl.out)
 	if err != nil {
-		cl.out.Die(err.Error())
+		cl.out.Fail(err)
 		return 1
 	}
 	x, err := boxcmd.NewDestroyDeps(cl.ctx, env, c, cl.out)
 	if err != nil {
-		cl.out.Die(err.Error())
+		cl.out.Fail(err)
 		return 1
 	}
 	return d.DestroyBox(cl.ctx, x, cl.args)
@@ -166,7 +166,7 @@ func cmdDestroy(cl *call) int {
 func cmdClean(cl *call) int {
 	d, _, err := boxcmd.New(cl.ctx, cl.get, cl.env(), cl.out)
 	if err != nil {
-		cl.out.Die(err.Error())
+		cl.out.Fail(err)
 		return 1
 	}
 	return d.Clean(cl.ctx)
@@ -175,7 +175,7 @@ func cmdClean(cl *call) int {
 func cmdDisk(cl *call) int {
 	d, c, err := boxcmd.New(cl.ctx, cl.get, cl.env(), cl.out)
 	if err != nil {
-		cl.out.Die(err.Error())
+		cl.out.Fail(err)
 		return 1
 	}
 	if len(cl.args) > 0 && cl.args[0] == "remove" || cl.json {
@@ -206,7 +206,7 @@ func cmdDisk(cl *call) int {
 func cmdClip(cl *call) int {
 	d, _, err := boxcmd.New(cl.ctx, cl.get, cl.env(), cl.out)
 	if err != nil {
-		cl.out.Die(err.Error())
+		cl.out.Fail(err)
 		return 1
 	}
 	switch {
@@ -222,7 +222,7 @@ func cmdClip(cl *call) int {
 func cmdPair(cl *call) int {
 	d, _, err := boxcmd.New(cl.ctx, cl.get, cl.env(), cl.out)
 	if err != nil {
-		cl.out.Die(err.Error())
+		cl.out.Fail(err)
 		return 1
 	}
 	return d.PairMoonlight(cl.ctx)
@@ -236,7 +236,7 @@ func cmdLibrary(cl *call) int {
 	if sub := firstArg(cl.args, "status"); onBoxLibrary(sub, cl.args) {
 		d, _, err := boxcmd.New(cl.ctx, cl.get, cl.env(), cl.out)
 		if err != nil {
-			cl.out.Die(err.Error())
+			cl.out.Fail(err)
 			return 1
 		}
 		rest := []string{}
@@ -323,7 +323,7 @@ func cmdSsh(cl *call) int {
 func cmdWatcher(cl *call) int {
 	opts, err := watcher.ParseArgs(cl.args)
 	if err != nil {
-		cl.out.Die(err.Error())
+		cl.out.Fail(err)
 		return 1
 	}
 	return watcher.Run(cl.ctx, cl.env(), opts, cl.out)
@@ -340,7 +340,7 @@ func cmdWatchdog(cl *call) int {
 func cmdStatus(cl *call) int {
 	opts, err := status.ParseArgs(cl.args)
 	if err != nil {
-		cl.out.Die(err.Error())
+		cl.out.Fail(err)
 		return 1
 	}
 	return status.Run(cl.ctx, cl.env(), cl.get, opts, cl.out)
@@ -349,7 +349,7 @@ func cmdStatus(cl *call) int {
 func cmdCost(cl *call) int {
 	opts, err := cost.ParseArgs(cl.args)
 	if err != nil {
-		cl.out.Die(err.Error())
+		cl.out.Fail(err)
 		return 1
 	}
 	return cost.Run(cl.ctx, cl.env(), cl.get, opts, cl.out)

@@ -64,12 +64,12 @@ func Run(ctx context.Context, env *config.Env, get config.Lookup, opts Options, 
 	region := env.Region()
 	cfg, err := awscfg.New(ctx, region)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	us, err := awscfg.New(ctx, "us-east-1")
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	home, _ := os.UserHomeDir()
@@ -106,7 +106,7 @@ func Run(ctx context.Context, env *config.Env, get config.Lookup, opts Options, 
 	if opts.JSON {
 		b, err := v.JSON()
 		if err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 		fmt.Fprintf(out.Stdout, "%s\n", b)

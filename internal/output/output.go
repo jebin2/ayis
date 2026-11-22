@@ -17,6 +17,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/jebin2/ayis/internal/fault"
 )
 
 // Out is where a command writes. Use a pointer: it remembers the step in
@@ -83,6 +85,22 @@ func (o *Out) Die(text string) {
 		return
 	}
 	fmt.Fprintf(o.Stderr, "%s  error: %s\n", o.ts(), text)
+}
+
+// Fail is Die for an error: its words, then one sentence of what to do about
+// it (internal/fault). Plain, the advice is a second line; in events mode the
+// error event carries it, with its class (yours, again, bug), so the app says
+// the same thing.
+func (o *Out) Fail(err error) {
+	class, hint := fault.Of(err), fault.Hint(err)
+	if o.JSON {
+		o.Event("error", "text", err.Error(), "class", string(class), "hint", hint)
+		return
+	}
+	fmt.Fprintf(o.Stderr, "%s  error: %s\n", o.ts(), err.Error())
+	if hint != "" {
+		fmt.Fprintf(o.Stderr, "       %s\n", hint)
+	}
 }
 
 // Say starts a step. A step still open is closed first.

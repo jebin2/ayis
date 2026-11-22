@@ -113,7 +113,7 @@ func Run(ctx context.Context, env *config.Env, args []string, watch bool, out *o
 	}
 	r, err := NewReader(ctx, env)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	if sub == "check" || sub == "install" || sub == "remove" {

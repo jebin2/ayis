@@ -157,7 +157,7 @@ func (d *Deps) WithDestroy(env *config.Env, client *ec2.Client) {
 	d.Destroy = func(ctx context.Context) int {
 		x, err := NewDestroyDeps(ctx, env, client, d.Out)
 		if err != nil {
-			d.Out.Die(err.Error())
+			d.Out.Fail(err)
 			return 1
 		}
 		return d.DestroyBox(ctx, x, nil)

@@ -43,7 +43,7 @@ func Run(ctx context.Context, env *config.Env, get config.Lookup, args []string,
 	region := env.Region()
 	cfg, err := awscfg.New(ctx, region)
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	q := Quota{SQ: servicequotas.NewFromConfig(cfg), EC2: ec2.NewFromConfig(cfg), Region: region, Type: env.Setting("GAME_INSTANCE_TYPE")}

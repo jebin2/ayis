@@ -68,7 +68,7 @@ func Run(ctx context.Context, env *config.Env, get config.Lookup, opts Options, 
 	}
 	us, err := awscfg.New(ctx, "us-east-1") // Cost Explorer, the Free Tier and the Price List answer only there
 	if err != nil {
-		out.Die(err.Error())
+		out.Fail(err)
 		return 1
 	}
 	g := &costfacts.Gatherer{
@@ -109,7 +109,7 @@ func Run(ctx context.Context, env *config.Env, get config.Lookup, opts Options, 
 	if opts.JSON {
 		b, err := in.JSON()
 		if err != nil {
-			out.Die(err.Error())
+			out.Fail(err)
 			return 1
 		}
 		fmt.Fprintf(out.Stdout, "%s\n", b)
