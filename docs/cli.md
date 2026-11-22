@@ -60,5 +60,6 @@ Moonlight's own log is at `~/.cache/ayis/moonlight.log`.
 
     ./ayis host remove homeserver    # takes ayis's SSH key off the server
     ./ayis aws disconnect            # delete everything ayis made in AWS, in every region
+    ./ayis aws policy                # the least-privilege IAM policy for the key ayis runs as
 
 Every command: [docs/commands.md](docs/commands.md).

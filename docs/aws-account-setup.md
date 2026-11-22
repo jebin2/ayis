@@ -37,6 +37,22 @@ directly, as below.
       REGION=ap-south-2        # the region you will build in
       TYPE=g6.xlarge           # the instance type (GAME_INSTANCE_TYPE)
 
+## A key that can do only what ayis does
+
+ayis does not need an administrator key. `ayis aws policy` prints the exact IAM policy it needs -
+every AWS action the code calls and nothing else, checked against the source by a test, so it
+cannot fall behind a release. To run ayis as a user with only that:
+
+    ./ayis aws policy > ayis-policy.json
+    aws iam create-user --user-name ayis
+    aws iam put-user-policy --user-name ayis --policy-name ayis --policy-document file://ayis-policy.json
+    aws iam create-access-key --user-name ayis      # then: ./ayis creds set
+
+The policy is least privilege by **action**; its resources are `*`, because ayis names what it
+makes at run time (your host name, a hashed bucket, the region you pick). What bounds the cost is
+the budget, which blocks new machines once it is spent, and the hard limits (`ayis limits`).
+Step 2 below still needs the root user, once.
+
 ## Step 1 - Choose a region that offers the instance type
 
 Not every region has every GPU type. `ap-south-2`, for example, has no `g4dn` at all, and quotas

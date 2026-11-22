@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/jebin2/ayis/internal/awspolicy"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awspricing "github.com/aws/aws-sdk-go-v2/service/pricing"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
@@ -22,7 +24,7 @@ import (
 	"github.com/jebin2/ayis/internal/storage"
 )
 
-const usage = "usage: ayis aws forget [--anyway] | ayis aws disconnect | ayis aws inventory [--json]"
+const usage = "usage: ayis aws forget [--anyway] | ayis aws disconnect | ayis aws inventory [--json] | ayis aws policy"
 
 // Run is `ayis aws ...`.
 func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out *output.Out) int {
@@ -31,6 +33,12 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 		return 1
 	}
 	sub, args := args[0], args[1:]
+	// The least-privilege IAM policy for the key ayis runs as. Asks AWS nothing.
+	if sub == "policy" {
+		b, _ := json.MarshalIndent(awspolicy.Document(), "", "  ")
+		fmt.Fprintln(out.Stdout, string(b))
+		return 0
+	}
 	switch sub {
 	case "inventory":
 	case "forget", "disconnect":

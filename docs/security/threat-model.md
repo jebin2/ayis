@@ -17,7 +17,7 @@ and AWS itself.
 
 | Asset | Where it lives | Reachable by | Controls | Gaps |
 |---|---|---|---|---|
-| **AWS access key** - rents GPUs on your bill | `~/.aws/credentials` (written by `aws configure` or `ayis creds set`) | A | File is yours (0600 by the AWS CLI); the AWS budget emails at 80% and **blocks new machines at 100%** (`ayis limits`); hard limits on hours | The key is broad - P6 adds a generated least-privilege policy (`ayis aws policy`) |
+| **AWS access key** - rents GPUs on your bill | `~/.aws/credentials` (written by `aws configure` or `ayis creds set`) | A | File is yours (0600 by the AWS CLI); the AWS budget emails at 80% and **blocks new machines at 100%** (`ayis limits`); hard limits on hours | An administrator key is more than ayis needs: `ayis aws policy` prints the exact policy, checked against the code ([how](../aws-account-setup.md#a-key-that-can-do-only-what-ayis-does)) |
 | **Tailscale auth key and API token** - join or manage your tailnet | `.env` (0600) | A | Auth keys are single-use and expire; the API token is optional | Plain text at rest (W10: OS keychain is planned) |
 | **SSH key for the box** | `~/.ssh/<host>.pem` (0600) | A | The box has **no inbound SSH** from the internet - only Tailscale's UDP port is open; SSH works only over the tailnet | - |
 | **Sunshine (streaming) login** | `.env`, and the box | A | Sunshine listens on the tailnet only | Plain text at rest (W10) |
