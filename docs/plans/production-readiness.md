@@ -226,9 +226,22 @@ stay whole. The pieces join back to the old file exactly, less the dead code bel
 - ESLint reads each script's top-level names, so a typo is still an undefined name; its errors are 0.
 - The suites read the renderer through `tests/lib/renderer.sh`, in `index.html`'s order.
 
-**Still to do in P3:** ES modules with explicit imports (the split makes each one a smaller
-change); behaviour tests in place of the source greps; and the DOM suites running locally - they
-still need Chromium (decision 4), and an Electron smoke test hung here for want of a display.
+**Part 2 done:**
+
+- **The browser suites run locally** (decision 4: yes). `tools/dev/install-browser.sh` installs
+  Playwright's headless shell (126 MB, outside the app); `tests/lib/browser.sh` finds it, in
+  place of sixteen copies of the lookup. All 48 suites now run here with nothing skipped.
+- **Not ES modules - measured, then decided** ([ADR-0003](../adr/0003-renderer-scripts-not-modules.md)):
+  514 cross-file imports, 28 variables assigned outside the script that declared them, and 731
+  browser assertions that probe the page's globals. Instead the shared scope is checked: one
+  owner per name, and shared state in `state.js` (loaded first) - a variable written by another
+  script must be declared there. The 28 now are; the rule was broken on purpose once to prove it.
+- ESLint: 0 errors, 13 warnings (from 33 before P0's baseline was split).
+
+**Not done - carried forward:** of `tests/app.sh`'s 401 checks, **309 assert that an exact line of
+source exists**. They fail on a harmless rename and pass when behaviour breaks. Each should become
+a probe in a browser suite or be deleted where a suite already covers it. That is a few days'
+careful work, best done page by page alongside the next change to each page.
 
 ### P4 - The watchdog as a package (M)
 

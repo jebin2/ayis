@@ -13,7 +13,6 @@ const $ = id => document.getElementById(id);
 // index are independent, so they go together. Each job remembers which screen
 // started it and what to do with its answer.
 const jobs = new Map();          // id -> { cmd, view, json, panel, collect, age, out, resolve }
-let view = 'dashboard';
 
 // What a run is called, so a button can say what it stops rather than "Stop".
 // A command is more than its first word. `ayis library list` reads an index;
@@ -293,7 +292,6 @@ function note(text, tone) {
 // The event stream, filtered. Rows carry their kind so a filter can hide them
 // without the app keeping a second copy of the log.
 let logFilter = 'steps';
-let logCount = 0;
 
 function logKind(event) {
   if (event.t === 'error' || event.kind === 'fail') return 'problems';
@@ -529,7 +527,6 @@ const diskMonthInr = gb => {
   const r = (statusNow && statusNow.rates) || {};
   return r.ebs_gb_month && r.inr_per_usd ? gb * r.ebs_gb_month * r.inr_per_usd : null;
 };
-let stoppedDisk = null, stoppedDiskFor = '';
 async function readStoppedDisk(s) {
   const b = s.box;
   if (!b || b.state !== 'stopped') { stoppedDisk = null; stoppedDiskFor = ''; return; }

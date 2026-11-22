@@ -162,11 +162,12 @@ The window (`app/`) is Electron. `app/main/` starts it and runs `ayis`; `app/mai
 the only bridge, and it can run nothing but `ayis`. The renderer draws what `ayis ... --json`
 says and never decides a price, a limit or a rule of its own.
 
-The renderer is fourteen scripts in `app/renderer/js/`, loaded **in order** by `index.html` into
-one shared scope - not ES modules, yet:
+The renderer is fifteen scripts in `app/renderer/js/`, loaded **in order** by `index.html` into
+one shared scope - not ES modules ([ADR-0003](adr/0003-renderer-scripts-not-modules.md)):
 
 | Script | Holds |
 |---|---|
+| `state.js` | every variable more than one script writes - loaded first |
 | `core.js` | jobs and the header, dialogs, notes, the log, questions mid-run, formatters |
 | `machine-card.js` | the AWS machine's status and card, the session countdown |
 | `home.js`, `cost.js`, `games.js`, `safety.js`, `settings.js` | one page each |
@@ -179,8 +180,8 @@ one shared scope - not ES modules, yet:
 
 Because the scope is shared, **order matters**: code that runs while a script loads may use only
 what earlier scripts declared. `tests/renderer-names.sh` fails on a name declared twice (the later
-one would silently replace the earlier, as one `cell` replaced another for months) and on a name
-nothing uses. ESLint knows every script's top-level names, so an undefined name is still an error.
+one would silently replace the earlier, as one `cell` replaced another for months), on a name
+nothing uses, and on a variable written by a script other than its own unless `state.js` declares it. ESLint knows every script's top-level names, so an undefined name is still an error.
 Tests read the renderer through `tests/lib/renderer.sh`, in `index.html`'s order.
 
 ## Flow 1 - `ayis init`: build a box

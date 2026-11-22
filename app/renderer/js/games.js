@@ -36,7 +36,6 @@ let libNow = null;   // the last `ayis library list`, for repainting when status
 // This is the app's one read on a timer: it asks the machine over SSH, never AWS,
 // so it bills nothing, and it stops when the page is left.
 const BOX_GAMES_FAST = 15000, BOX_GAMES_IDLE = 60000;
-let pcNow = null, pcAt = 0, pcFailed = false, pcReading = false, pcTimer = null;
 const gbWords = bytes => `${(bytes / 1073741824).toFixed(bytes < 10737418240 ? 1 : 0)} GB`;
 const minutesWords = m => m < 1 ? 'less than a minute'
   : m < 60 ? `${Math.round(m)} min`
@@ -325,8 +324,6 @@ async function forgetGame(g) {
   if (ok) await libraryRun(['library', 'forget', String(g.appid), ...fromArgs(g)], `Deleting ${name}`, 'forget-game', 'FORGET');
 }
 
-// The word typed in the app's own dialog, handed to ayis when it asks for it.
-let typedPending = null;
 const typedAnswer = askId => (typedPending && typedPending.askId === askId ? typedPending.word : null);
 
 // A change to the saved games, run where you asked for it. The popup says what

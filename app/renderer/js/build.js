@@ -4,24 +4,6 @@
 // (docs/architecture.md, "The app").
 
 // --- Build -------------------------------------------------------------------
-// The picker mirrors ayis's own arithmetic so the button can be refused early;
-// the box enforces it again at boot, which is where it must be enforced.
-let archive = { games: [], selectable_gb: null };
-let boxSeenAt = 0;   // when it was read
-let boxNow = null;   // the box `ayis status` last reported, or null
-let sessionNow = null; // a `ayis open` streaming from this laptop, per ayis status
-let config = [];     // the settings registry, as `ayis config --json` last gave it
-let watcher = null;  // `ayis watcher --json`, for the guard strip and the Guards screen
-let statusBudget = null;
-let costNow = null;  // the last paid cost fetch, if one was made in this window
-let costNowAt = null;
-let statusNow = null; // `ayis status --json`, as last read
-let statusAt = null;   // when it was
-// `ayis ping --json` - direct or relayed, and the latency - asked only while the
-// machine is online, and at most once a minute: it is a local tailscale ping,
-// free, but it takes a few seconds and means nothing with no machine.
-let pingNow = null, pingAt = 0, pingBusy = false;
-const activity = [];  // what ayis has done in this window, newest first
 
 // The saved games, kept for the Play popup. The Build page no longer lists them:
 // nothing is put on a machine when it is built.
@@ -77,11 +59,6 @@ function paintFit() {
 // when asked. With no scan yet there is still a table: the current region's
 // machines, from `ayis machines`, with a line saying what a scan would add.
 let sweepNow = null;
-// A scan in flight. The table shows one region until it lands, and saying why
-// is the difference between "still working" and "the other regions are gone".
-let sweeping = false;
-// A picked price being saved: three settings written, then read back.
-let choosing = false;
 // While either runs, the chooser is locked - nothing in it can be picked,
 // pressed or closed until the answer is in, or a choice could land on a table
 // that is about to change under it.
@@ -508,14 +485,10 @@ function paintSpec(s) {
   paintLibraryPage();       // where the games are kept, and for how long
 }
 
-// Numbered steps, the way ayis reports them: the one running is marked, the ones
-// before it carry how long they took. No timer - each event repaints.
-let buildStarted = 0;
 // How long a run is expected to take, in minutes, so the bar means something.
 // Only `init` has a published estimate - the others finish when they finish, and
 // a bar invented for them would be a number nobody measured.
 const RUN_EXPECT = { init: 20 };
-let buildSteps = 0;
 
 // ── A run, as steps ─────────────────────────────────────────────────────────
 //

@@ -41,6 +41,11 @@ export default [
       'no-unused-vars': ['warn', { vars: 'local', args: 'none', caughtErrors: 'none' }] },
   },
   {
+    // Shared state is declared here and assigned by the pages: never const.
+    files: ['renderer/js/state.js'],
+    rules: { 'prefer-const': 'off' },
+  },
+  {
     files: ['main/**/*.js', 'scripts/**/*.js', '*.js'],
     languageOptions: { ecmaVersion: 2023, sourceType: 'commonjs', globals: { ...globals.node } },
     rules,

@@ -33,8 +33,6 @@ let hostsNow = homeBoot ? homeBoot.hosts : null;   // `ayis host list --json`, a
 const hostStatus = new Map();     // name -> `ayis host status <name> --json`
 const hostLogs = new Map();       // name -> its setup log <pre>, kept across paints
 let machineTab = 'aws';           // what the Machine page shows: 'aws', or one of yours by name
-let adding = null;                // 'aws' | 'host' while the add dialog is open
-let addedHost = null;             // the machine that dialog has just added
 
 // "An AWS machine" is a laptop set up to play on AWS: a region chosen, which is
 // the last step of adding it. ayis aws forget takes it away again.

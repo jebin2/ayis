@@ -327,7 +327,7 @@ const SIGNIN_RE = /https:\/\/login\.tailscale\.com\/a\/[^\s]+/;
 // Where the words of the run in flight go. Two surfaces now: the dialog, for a
 // run you asked for from a card, and the first-run pipeline's pane. The link
 // has to appear on whichever one is in front of you.
-let runSurface = { link: 'rundlg-link', log: 'rundlg-log', status: runDlgStatus };
+runSurface = { link: 'rundlg-link', log: 'rundlg-log', status: runDlgStatus };   // declared in state.js
 function watchForSignInLink(text) {
   const m = SIGNIN_RE.exec(text || '');
   if (!m) return;

@@ -34,7 +34,6 @@
 // thing on the new dashboard was "Stop refresh" and three empty cards. The
 // handover waits for this to reach zero instead: the dashboard arrives filled.
 let readingBehindGate = 0;
-let onbHandover = null;
 const ONB_HANDOVER_MS = 900;
 // The dialog's last step is done: a beat, so the tick is seen landing, then
 // `then` - closing it, for AWS and for a server set up alike.
@@ -50,16 +49,7 @@ function afterBeat(then, ms = ONB_HANDOVER_MS) { return setTimeout(then, ms); }
 // stopped, which matters: a sign-in waits on a browser that may never answer.
 let onbRunning = null;
 let onbJob = null;
-// A sentence about the last attempt at the active stage - why it failed - and
-// whether the run in flight is now waiting on a browser rather than working.
-let onbNote = '';
-let onbTone = '';
 let onbWaiting = false;
-// The step whose command just succeeded, until the read that judges it comes
-// back. Without it the step fell back to exactly what it showed before - red
-// marks and "Install them" - for as long as the re-read took, which looked like
-// the install had not happened.
-let onbVerifying = null;
 // Waiting for the reads before the step's command: nothing of its own is
 // running yet, so there is nothing for Stop to stop.
 let onbQueued = false;
@@ -720,23 +710,6 @@ async function retryReads() {
   return refreshAll();
 }
 
-// On open: ask what this laptop can do, and only then ask AWS anything.
-//
-// It used to fire all nine reads at once. On a laptop with no AWS CLI that is
-// six reads that cannot work, a screen of unknowns, and the actual problem - a
-// missing tool - somewhere in the middle of it.
-//
-// When the gate stays shut, it has to open again by itself once the last
-// blocking stage is fixed - and not every fix is a write that comes back
-// through here. The billing address is a `ayis config set`, which ayis does not
-// list as running alone, so the window re-reads only the setting: the stage
-// ticked, and "where it runs" sat on "checking…" for ever, waiting on a
-// `ayis machines` that nothing was ever going to ask for. So `gateShut` remembers
-// that the reads behind the gate were skipped, and ANY gate read that lands
-// with nothing blocking left - from a dialog, from Settings, from anywhere -
-// asks them. Cleared at the start of this function, so the gate reads it
-// makes itself never open it a second time underneath it.
-let gateShut = false;
 // each: told as each read lands, so a popup can tick them off.
 async function refreshAll(each) {
   gateShut = false;
