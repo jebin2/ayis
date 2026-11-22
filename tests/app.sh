@@ -289,7 +289,10 @@ check "nothing repeats on an interval"   "$(grep -c 'setInterval' app/renderer/a
 # beat so you see them finish, instead of six ticks flashing for 200ms. The other
 # is the Games page's read of the machine (above), which asks no one but the box.
 # The third is Stop machine waiting, 20 seconds at most, for the session to end.
-check "  and three delays, which they are" "$(grep -c 'setTimeout' app/renderer/app.js)" "3"
+# The fourth redraws a session's countdown from the clock here, only while one is
+# on screen; it starts no command and asks AWS nothing.
+check "  and four delays, which they are" "$(grep -c 'setTimeout' app/renderer/app.js)" "4"
+contains "  the countdown's asks only the clock" "$(tr -s ' ' < app/renderer/app.js)" "sessionTimer = setTimeout(() => { sessionTimer = null; tickSessions(); }, 15000);"
 contains "  the handover beat"           "$js" 'function afterBeat(then, ms = ONB_HANDOVER_MS) { return setTimeout(then, ms); }'
 contains "  after which it closes on the card" "$js" "note('AWS added', 'text-primary'); closeAdd();"
 # Home is never hidden: with no machine it asks the one question instead.

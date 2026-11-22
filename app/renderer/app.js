@@ -819,8 +819,15 @@ function tickSessions() {
                              : `Session limit reached: switching off now`;
     n.className = 'font-code-sm text-code-sm ' + (left <= SESSION_WARN_MIN ? 'text-error' : 'text-on-surface-variant');
   }
+  tickSessionsSoon();
 }
-setInterval(tickSessions, 15000);
+// Not an interval: it re-arms only while a countdown is on screen, and asks
+// nothing of AWS - the minutes come from the clock here.
+let sessionTimer = null;
+function tickSessionsSoon() {
+  if (sessionTimer || !document.querySelector('[data-ends]')) return;
+  sessionTimer = setTimeout(() => { sessionTimer = null; tickSessions(); }, 15000);
+}
 
 // The whole card, buttons too, built once per page from one recipe, so the
 // two cannot be laid out differently. Ids keep the page's prefix: d- on Home,
