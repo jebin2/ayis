@@ -232,7 +232,7 @@ func AssembleSupervised(fsys fs.FS, vars map[string]string) (UserData, error) {
 // SupervisedBundle is HostBundle plus what the supervisor runs: the plan, the
 // prelude and each stage's module (comments stripped, placeholders left for the box
 // to fill from its own environment file).
-func SupervisedBundle(fsys fs.FS, ntfyURL string) ([]byte, error) {
+func SupervisedBundle(fsys fs.FS, ntfy Ntfy) ([]byte, error) {
 	extra := map[string][]byte{}
 	plan, err := PlanJSON()
 	if err != nil {
@@ -251,7 +251,7 @@ func SupervisedBundle(fsys fs.FS, ntfyURL string) ([]byte, error) {
 		}
 		extra["stages/"+s.File] = []byte(render.Strip(string(b)))
 	}
-	return hostBundle(fsys, ntfyURL, extra)
+	return hostBundle(fsys, ntfy, extra)
 }
 
 // tarEntries adds the extra files, in a fixed order so the bundle is the same each

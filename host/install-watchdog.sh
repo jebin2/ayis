@@ -16,9 +16,14 @@ install -m 644 limit-popup.service /etc/systemd/system/
 install -m 644 limit-popup.timer   /etc/systemd/system/
 # Notifications: the build and ayis init put the ntfy URL beside this script when
 # GAME_NTFY_URL is set. No file means off - so removing the setting removes this.
+# A second line is the topic's access token (GAME_NTFY_TOKEN), for a protected
+# topic; the file is root's only (0600) because of it.
 if [[ -s notify.url ]]; then
   install -m 600 /dev/null /etc/ayis-notify.conf
-  printf 'AYIS_NTFY_URL=%s\n' "$(head -n 1 notify.url)" > /etc/ayis-notify.conf
+  { printf 'AYIS_NTFY_URL=%s\n' "$(sed -n 1p notify.url)"
+    tok=$(sed -n 2p notify.url)
+    [[ -n $tok ]] && printf 'AYIS_NTFY_TOKEN=%s\n' "$tok"
+  } > /etc/ayis-notify.conf
 else
   rm -f /etc/ayis-notify.conf
 fi

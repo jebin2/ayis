@@ -680,7 +680,7 @@ check "  every Linux format is built" \
 # electron-builder writes "<name>-<version>.pacman", NOT a .pkg.tar.zst. The
 # file is a zstd package either way, but a glob for the wrong extension would
 # have shipped a release with the Arch package silently missing.
-contains "  and the workflow ships them"  "$(cat .github/workflows/desktop-release.yml)" "artifacts/**/*.pacman"
+contains "  and the workflow ships them"  "$(cat .github/workflows/desktop-release.yml)" "-name '*.pacman'"
 # fpm shells out to bsdtar for the Arch package's .MTREE, and the Ubuntu runner
 # does not have it - the build spent four minutes on the other three formats
 # and then died with exit 127. Arch has bsdtar, so only CI ever saw it.
@@ -698,7 +698,7 @@ lacks "  not a name Arch has never had" \
       "$(node -e 'console.log(JSON.stringify(require("./app/package.json").build.pacman))')" "http-parser"
 lacks "  nor one that lives only in the AUR" \
       "$(node -e 'console.log(JSON.stringify(require("./app/package.json").build.pacman))')" "libappindicator"
-contains "  including the one with no dependencies" "$(cat .github/workflows/desktop-release.yml)" "artifacts/**/*.tar.gz"
+contains "  including the one with no dependencies" "$(cat .github/workflows/desktop-release.yml)" "-name '*.tar.gz'"
 contains "the release says which file to take" "$(cat .github/workflows/desktop-release.yml)" "Arch, CachyOS, Omarchy"
 contains "  and warns what the AppImage needs" "$(cat .github/workflows/desktop-release.yml)" "needs FUSE 2 on the machine"
 # A path INSIDE it, not the directory itself: the rule is `app/dist/`, which git
@@ -733,8 +733,10 @@ contains "it builds for macOS"                "$wf" "runs-on: macos-latest"
 contains "  and for Windows"                  "$wf" "runs-on: windows-latest"
 contains "  the DMG for Intel and for Apple Silicon" "$wf" "--mac --x64"
 contains "  (ayis built for each)"              "$wf" "AYIS_GOARCH: arm64"
-contains "  a portable Windows exe"           "$wf" "artifacts/**/*-portable.exe"
-contains "  and the dmgs go in the release"   "$wf" "artifacts/**/*.dmg"
+contains "  a portable Windows exe"           "$wf" "-name '*-portable.exe'"
+contains "  and the dmgs go in the release"   "$wf" "-name '*.dmg'"
+contains "  every file the release ships, with its checksum" "$wf" "sha256sum * > SHA256SUMS"
+contains "  and its build provenance"        "$wf" "actions/attest-build-provenance@v4"
 contains "  only a tag publishes"             "$wf" "if: startsWith(github.ref, 'refs/tags/v')"
 contains "  and says they are unsigned and new" "$wf" "Not signed."
 contains "  and what has been tried"          "$wf" "built but not yet used by a person"

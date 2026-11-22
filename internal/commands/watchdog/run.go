@@ -81,6 +81,7 @@ func SettingsFor(env *config.Env, rates pricing.Rates, account string) wd.Settin
 		// idle stop - which saves the games first - is still entitled to wait for.
 		IdleMinutes: max(env.Int("GAME_WATCHDOG_IDLE_MIN"), env.Int("GAME_IDLE_MIN")+15), StuckMinutes: env.Int("GAME_WATCHDOG_STUCK_MIN"),
 		ExpiryDays: env.Int("GAME_ARCHIVE_EXPIRY_DAYS"), NtfyURL: config.NtfyURL(env.Get("GAME_NTFY_URL")),
+		NtfyToken:     env.Get("GAME_NTFY_TOKEN"),
 		MaxHoursMonth: env.Int("GAME_MAX_HOURS_MONTH"), MaxSessionHours: env.Int("GAME_MAX_SESSION_HOURS"),
 		BlockPolicyARN: limits.BlockPolicyARN(account, host)}
 	if rates.S3GBMonth != nil {

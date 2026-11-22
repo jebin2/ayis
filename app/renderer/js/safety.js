@@ -105,7 +105,15 @@ function paintGuards(d) {
   const knobs = $('g-knobs');
   knobs.textContent = '';
   const WANT = ['GAME_BUDGET_INR', 'GAME_MAX_HOURS_MONTH', 'GAME_MAX_SESSION_HOURS', 'EMAIL_ALERTS',
-                'GAME_WATCHDOG_IDLE_MIN', 'GAME_WATCHDOG_STUCK_MIN', 'GAME_NTFY_URL'];
+                'GAME_WATCHDOG_IDLE_MIN', 'GAME_WATCHDOG_STUCK_MIN', 'GAME_NTFY_URL', 'GAME_NTFY_TOKEN'];
+  // A public ntfy.sh topic with no token: anyone who learns its name reads every
+  // alert, costs included (docs/adr/0004). Said on the row, not hidden in a doc.
+  const ntfyRow = config.find(x => x.key === 'GAME_NTFY_URL') || {};
+  const tokenRow = config.find(x => x.key === 'GAME_NTFY_TOKEN') || {};
+  // A bare topic is a topic on ntfy.sh; a server of your own is yours to protect.
+  const topic = ntfyRow.value || '';
+  const onNtfySh = !/^https?:\/\//.test(topic) || /^https?:\/\/ntfy\.sh\//.test(topic);
+  const publicTopic = !!ntfyRow.is_set && !tokenRow.is_set && onNtfySh;
   for (const key of WANT) {
     const r = config.find(x => x.key === key);
     if (!r) continue;
@@ -121,6 +129,12 @@ function paintGuards(d) {
     const note = document.createElement('p');
     note.className = 'font-body-sm text-body-sm text-outline mt-0.5';
     note.textContent = PLAIN_NOTE[key] || r.note;
+    if (key === 'GAME_NTFY_URL' && publicTopic) {
+      note.textContent = 'Public topic: anyone who learns its name can read these alerts, costs included. '
+        + 'Add an access token below to keep them private.';
+      note.classList.add('text-error');
+      note.dataset.warn = 'public-topic';
+    }
     left.append(n, note);
     const right = document.createElement('div');
     right.className = 'flex items-center gap-space-sm min-w-0 max-w-full ml-auto';

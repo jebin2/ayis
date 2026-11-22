@@ -1109,7 +1109,7 @@ const PLAIN = { GAME_RES: 'Resolution', GAME_FPS: 'Frame rate', GAME_BITRATE_KBP
                 GAME_BUDGET_INR: 'Monthly budget', EMAIL_ALERTS: 'Alert email',
                 GAME_MAX_HOURS_MONTH: 'Play hours a month', GAME_MAX_SESSION_HOURS: 'Session limit',
                 GAME_WATCHDOG_IDLE_MIN: 'Stop after idle', GAME_WATCHDOG_STUCK_MIN: 'Force stop after',
-                GAME_NTFY_URL: 'Phone alerts' };
+                GAME_NTFY_URL: 'Phone alerts', GAME_NTFY_TOKEN: 'Alerts access token' };
 const PLAIN_NOTE = {
   GAME_RES: 'e.g. 1920x1080. Empty uses Moonlight default.',
   GAME_DISK_GB: 'Applies at next build. Cannot be reduced later.',
@@ -1120,6 +1120,7 @@ const PLAIN_NOTE = {
   GAME_WATCHDOG_IDLE_MIN: 'Idle time before auto-stop.',
   GAME_WATCHDOG_STUCK_MIN: 'Forces a stuck shutdown after this long.',
   GAME_NTFY_URL: 'ntfy topic. Empty disables phone alerts.',
+  GAME_NTFY_TOKEN: 'An ntfy token (tk_…) for a topic only you can read. Optional.',
 };
 // The value, said the way the row means it.
 function plainValue(r) {

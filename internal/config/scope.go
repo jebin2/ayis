@@ -30,6 +30,7 @@ var accountKeys = map[string]bool{
 	"GAME_WATCHDOG_IDLE_MIN":   true,
 	"GAME_WATCHDOG_STUCK_MIN":  true,
 	"GAME_NTFY_URL":            true,
+	"GAME_NTFY_TOKEN":          true, // with the URL: the watchdog and the box need both
 	"EMAIL_ALERTS":             true,
 }
 

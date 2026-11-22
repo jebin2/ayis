@@ -127,3 +127,27 @@ jobs:
           path: ${{ runner.temp }}/test-logs
           if-no-files-found: ignore
           retention-days: 14
+
+  # Every commit on the branch, not just the last: a key committed and then
+  # removed is still in the history anyone can clone. Fake keys the tests use
+  # are listed in .gitleaks.toml; tests/secrets-guard.sh checks the owner's own
+  # identifiers (GUARD_EXTRA).
+  secrets:
+    name: Secrets (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks 8.21.2 (checksum verified)
+        run: |
+          v=8.21.2
+          base=https://github.com/gitleaks/gitleaks/releases/download/v$v
+          curl -fsSLO "$base/gitleaks_${v}_linux_x64.tar.gz"
+          curl -fsSLO "$base/gitleaks_${v}_checksums.txt"
+          grep " gitleaks_${v}_linux_x64.tar.gz$" "gitleaks_${v}_checksums.txt" | sha256sum -c -
+          tar -xzf "gitleaks_${v}_linux_x64.tar.gz" gitleaks
+      - name: Scan the whole history
+        run: ./gitleaks git --redact --no-banner -v
+

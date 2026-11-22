@@ -56,6 +56,7 @@ type Params struct {
 	// The bucket the library lives in, and where it is.
 	Bucket, BucketRegion string
 	NtfyURL              string
+	NtfyToken            string
 	KeyFile              string
 	// Prices for the cross-region notice (nil: unknown).
 	XRegionUSD, INR *float64
@@ -391,7 +392,7 @@ func (p Provisioner) launch(ctx context.Context, a Params) (id string, restored 
 // user-data as base64. A presigned GET, valid two hours, so the box needs no
 // credentials at the point in the build where it has none.
 func (p Provisioner) userData(ctx context.Context, a Params) (UserData, error) {
-	bundle, err := SupervisedBundle(p.Src, a.NtfyURL)
+	bundle, err := SupervisedBundle(p.Src, Ntfy{URL: a.NtfyURL, Token: a.NtfyToken})
 	if err != nil {
 		return UserData{}, fmt.Errorf("could not bundle host/: %s", firstLine(err))
 	}

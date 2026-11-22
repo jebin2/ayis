@@ -79,6 +79,8 @@ SESSION_WARNED_TAG = "ayis-session-warned"
 
 # ntfy push notifications. Off unless ayis passed a URL.
 NTFY_URL = os.environ.get("AYIS_NTFY_URL", "")
+# An access token for a protected topic (GAME_NTFY_TOKEN); "" for a public one.
+NTFY_TOKEN = os.environ.get("AYIS_NTFY_TOKEN", "")
 # A launch history longer than this is treated as unreadable, not as empty.
 TRAIL_PAGES = 40
 DELETE_ROUNDS = 1000

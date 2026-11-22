@@ -309,7 +309,7 @@ func (i *Init) provision(ctx context.Context, pre check.Result, ntfy string) (pr
 	}
 	res, err := p.Run(ctx, provision.Params{XRegionUSD: xr, INR: inr, Host: host, Region: region, Type: pre.Type, DiskGB: i.diskGB(), DataGB: data.GB, ExtraApps: strings.Join(data.ExtraApps, ","), Spot: pre.Spot, TagKey: config.TagKey,
 		AuthKey: pre.AuthKey, Apps: apps, Login: login, ReserveGB: i.Env.Setting("GAME_DISK_RESERVE_GB"),
-		Bucket: bucket, BucketRegion: bucketRegion, NtfyURL: ntfy, KeyFile: filepath.Join(home, ".ssh", host+".pem")})
+		Bucket: bucket, BucketRegion: bucketRegion, NtfyURL: ntfy, NtfyToken: i.ntfyToken(ntfy), KeyFile: filepath.Join(home, ".ssh", host+".pem")})
 	if err != nil {
 		var le *provision.LaunchError
 		if errors.As(err, &le) {
@@ -461,7 +461,7 @@ func (i *Init) finish(ctx context.Context, bx box.Box, pre check.Result, id, nod
 	f.AfterStream = func(ctx context.Context) (string, error) {
 		i.Out.SayID("init.host-watchdog", "refreshing the on-host watchdog")
 		i.Out.Log("copying host/ ...")
-		bundle, err := provision.HostBundle(ayis.Files, ntfy)
+		bundle, err := provision.HostBundle(ayis.Files, provision.Ntfy{URL: ntfy, Token: i.ntfyToken(ntfy)})
 		if err == nil {
 			_, err = bx.SSH(ctx, "mkdir -p host && tar -xz -C host", strings.NewReader(string(bundle)))
 		}
@@ -580,4 +580,12 @@ func (r remoteBox) SSH(ctx context.Context, command string) ([]byte, error) {
 
 func (r remoteBox) SSHInput(ctx context.Context, command string, stdin io.Reader) ([]byte, error) {
 	return r.b.SSH(ctx, command, stdin)
+}
+
+// ntfyToken is the access token for the box's phone messages: only with a URL.
+func (i *Init) ntfyToken(url string) string {
+	if url == "" {
+		return ""
+	}
+	return i.Env.Get("GAME_NTFY_TOKEN")
 }

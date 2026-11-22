@@ -44,11 +44,15 @@ func stripComments(b []byte) []byte {
 // a full byte of the 16 KB budget. It goes to S3 and the box fetches it, rather
 // than riding along inside user-data. It used to: 9,572 bytes of 16,384 - 58% -
 // which left 68 bytes of headroom, not a budget but a tripwire.
-func HostBundle(fsys fs.FS, ntfyURL string) ([]byte, error) {
-	return hostBundle(fsys, ntfyURL, nil)
+// Ntfy is where the box sends its phone messages: the URL, and an access token
+// for a protected topic ("" for a public one).
+type Ntfy struct{ URL, Token string }
+
+func HostBundle(fsys fs.FS, ntfy Ntfy) ([]byte, error) {
+	return hostBundle(fsys, ntfy, nil)
 }
 
-func hostBundle(fsys fs.FS, ntfyURL string, extra map[string][]byte) ([]byte, error) {
+func hostBundle(fsys fs.FS, ntfy Ntfy, extra map[string][]byte) ([]byte, error) {
 	entries, err := fs.ReadDir(fsys, "host")
 	if err != nil {
 		return nil, err
@@ -94,8 +98,14 @@ func hostBundle(fsys fs.FS, ntfyURL string, extra map[string][]byte) ([]byte, er
 		}
 		extra = withPic
 	}
-	if ntfyURL != "" {
-		if err := put("notify.url", 0o644, []byte(ntfyURL+"\n")); err != nil {
+	if ntfy.URL != "" {
+		// The token, when there is one, is the second line. install-watchdog.sh moves
+		// both into /etc/ayis-notify.conf (0600); the file here is the bundle's own.
+		body := ntfy.URL + "\n"
+		if ntfy.Token != "" {
+			body += ntfy.Token + "\n"
+		}
+		if err := put("notify.url", 0o600, []byte(body)); err != nil {
 			return nil, err
 		}
 	}

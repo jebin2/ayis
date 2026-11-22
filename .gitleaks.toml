@@ -1,0 +1,12 @@
+# gitleaks (CI: .github/workflows/test.yml, job "Secrets"). The default rules,
+# plus the FAKE values the tests use on purpose - listed exactly, so a real
+# key beside them is still caught. tests/secrets-guard.sh keeps the same list.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "fake credentials in tests"
+regexes = [
+  '''tskey-api-abc123''',
+  '''AKIA(NEWKEYNEWKEY5678|EXAMPLEEXAMPLE00|BADBADBADBAD9999|GOODGOODGOOD1234|IOSFODNN7EXAMPLE)''',
+]

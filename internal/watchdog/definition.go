@@ -43,6 +43,7 @@ type Settings struct {
 	StuckMinutes int
 	ExpiryDays   int
 	NtfyURL      string // "" leaves it absent
+	NtfyToken    string // an ntfy access token; "" leaves it absent
 	// The hard limits, each 0 or "" for off: the month's machine hours, one
 	// session's hours, and the deny policy a spent AWS budget attaches.
 	MaxHoursMonth   int
@@ -71,10 +72,12 @@ func (s Settings) Env() string {
 	}
 	// The limits come last, and only when on: a watchdog deployed without them
 	// keeps the exact text - and so the fingerprint - it was deployed with.
-	return fmt.Sprintf("Variables={AYIS_TS_HOST=%s,AYIS_IDLE_MINUTES=%d,AYIS_BOOT_GRACE_MINUTES=%d,AYIS_STUCK_MINUTES=%d,AYIS_BUCKET=%s,AYIS_ACCOUNT=%s,AYIS_ARCHIVE_EXPIRY_DAYS=%d%s%s%s%s%s%s%s}",
+	return fmt.Sprintf("Variables={AYIS_TS_HOST=%s,AYIS_IDLE_MINUTES=%d,AYIS_BOOT_GRACE_MINUTES=%d,AYIS_STUCK_MINUTES=%d,AYIS_BUCKET=%s,AYIS_ACCOUNT=%s,AYIS_ARCHIVE_EXPIRY_DAYS=%d%s%s%s%s%s%s%s%s}",
 		s.Host, s.IdleMinutes, BootGrace, s.StuckMinutes, s.Bucket, s.Account, s.ExpiryDays,
 		opt("AYIS_S3_USD_GB_MONTH", s.S3GBMonth), opt("AYIS_INR_PER_USD", s.INRPerUSD), opt("AYIS_NTFY_URL", s.NtfyURL),
-		num("AYIS_MAX_HOURS_MONTH", s.MaxHoursMonth), num("AYIS_MAX_SESSION_HOURS", s.MaxSessionHours), opt("AYIS_BLOCK_POLICY_ARN", s.BlockPolicyARN), opt("AYIS_OD_USD_HOUR", s.ODUSDHour))
+		num("AYIS_MAX_HOURS_MONTH", s.MaxHoursMonth), num("AYIS_MAX_SESSION_HOURS", s.MaxSessionHours), opt("AYIS_BLOCK_POLICY_ARN", s.BlockPolicyARN), opt("AYIS_OD_USD_HOUR", s.ODUSDHour),
+		// Last, and only when set, so a watchdog deployed without one keeps its fingerprint.
+		opt("AYIS_NTFY_TOKEN", s.NtfyToken))
 }
 
 // EnvMap is the same environment as a map, for the API: the text form above is
@@ -93,6 +96,9 @@ func (s Settings) EnvMap() map[string]string {
 	}
 	if s.NtfyURL != "" {
 		m["AYIS_NTFY_URL"] = s.NtfyURL
+	}
+	if s.NtfyToken != "" {
+		m["AYIS_NTFY_TOKEN"] = s.NtfyToken
 	}
 	if s.MaxHoursMonth != 0 {
 		m["AYIS_MAX_HOURS_MONTH"] = fmt.Sprint(s.MaxHoursMonth)

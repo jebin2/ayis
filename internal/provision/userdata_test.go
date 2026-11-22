@@ -42,7 +42,7 @@ func TestHostBundleStripsCommentsKeepsShebangsAndAddsTheNotifyAddress(t *testing
 		"host/unit.service": {Data: []byte("[Unit]\n# note\nDescription=d\n")},
 		"host/sub/ignored":  {Data: []byte("x")},
 	}
-	b, err := HostBundle(fsys, "https://ntfy.example/topic")
+	b, err := HostBundle(fsys, Ntfy{URL: "https://ntfy.example/topic"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,9 +56,14 @@ func TestHostBundleStripsCommentsKeepsShebangsAndAddsTheNotifyAddress(t *testing
 	if _, ok := m["sub/ignored"]; ok {
 		t.Error("only the files in host/")
 	}
-	b, _ = HostBundle(fsys, "")
+	b, _ = HostBundle(fsys, Ntfy{})
 	if _, ok := untar(t, b)["notify.url"]; ok {
 		t.Error("absent is off")
+	}
+	// A protected topic: its token is the second line, for install-watchdog.sh.
+	b, _ = HostBundle(fsys, Ntfy{URL: "https://ntfy.example/topic", Token: "tk_test"})
+	if got := untar(t, b)["notify.url"]; got != "https://ntfy.example/topic\ntk_test\n" {
+		t.Errorf("with a token: %q", got)
 	}
 }
 
@@ -70,7 +75,7 @@ func TestHostBundleCarriesTheHelpPictureUntouched(t *testing.T) {
 		"host/a.sh":                {Data: []byte("#!/bin/bash\necho hi\n")},
 		"lib/assets/ayis-help.png": {Data: pic},
 	}
-	b, err := HostBundle(fsys, "")
+	b, err := HostBundle(fsys, Ntfy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,12 +83,12 @@ func TestHostBundleCarriesTheHelpPictureUntouched(t *testing.T) {
 		t.Errorf("the picture was changed: %q", got)
 	}
 	// And a bundle with no picture is just the scripts.
-	b, _ = HostBundle(fstest.MapFS{"host/a.sh": {Data: []byte("#!/bin/bash\n")}}, "")
+	b, _ = HostBundle(fstest.MapFS{"host/a.sh": {Data: []byte("#!/bin/bash\n")}}, Ntfy{})
 	if _, ok := untar(t, b)["ayis-help.png"]; ok {
 		t.Error("no picture to carry")
 	}
 	// The real one is there, and is the real picture.
-	b, err = HostBundle(os.DirFS("../.."), "")
+	b, err = HostBundle(os.DirFS("../.."), Ntfy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +107,7 @@ func TestHostBundleMatchesTheBashStripOnTheRealFiles(t *testing.T) {
 	if _, err := os.Stat("../../host"); err != nil {
 		t.Skip("no host/")
 	}
-	b, err := HostBundle(os.DirFS("../.."), "")
+	b, err := HostBundle(os.DirFS("../.."), Ntfy{})
 	if err != nil {
 		t.Fatal(err)
 	}

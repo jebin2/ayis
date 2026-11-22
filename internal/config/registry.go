@@ -39,6 +39,7 @@ var Registry = []Setting{
 	{"GAME_WATCHDOG_IDLE_MIN", "number", "30", "10", "Minutes of quiet before the cloud watchdog ends the box.", "cloud watchdog idle (min)", "The guards"},
 	{"GAME_WATCHDOG_STUCK_MIN", "number", "60", "40", "Minutes before a stuck shutdown is forced. Never inside the push's 30.", "stuck shutdown forced after (min)", "The guards"},
 	{"GAME_NTFY_URL", "ntfy", "", "", "Phone notifications: an ntfy topic or full URL. Empty turns them off.", "phone notifications", "Notifications"},
+	{"GAME_NTFY_TOKEN", "secret", "", "ntfy", "An ntfy access token (tk_...), for a topic only you can read - on ntfy.sh with an account, or on your own server. Without one, anyone who learns a public topic's name can read your messages, costs included.", "phone notifications token", "Notifications"},
 	{"TAILSCALE_API_KEY", "secret", "", "", "Tailscale API token. Prunes old nodes and turns off key expiry. Empty goes without.", "Tailscale API token", ""},
 	{"EMAIL_ALERTS", "email", "", "", "Where budget alerts are sent. Comma separated for several.", "billing alerts to", "Notifications"},
 	{"GAME_RES", "text", "", "", "Moonlight resolution, e.g. 1920x1080. Empty leaves Moonlight's own setting.", "stream resolution", "The stream"},
@@ -68,6 +69,7 @@ func init() {
 var (
 	wholeNumber = regexp.MustCompile(`^[0-9]+$`)
 	tskey       = regexp.MustCompile(`^tskey-[A-Za-z0-9-]+$`)
+	ntfyToken   = regexp.MustCompile(`^tk_[A-Za-z0-9]{10,64}$`)
 	regionShape = regexp.MustCompile(`^[a-z]{2}(-[a-z]+)+-[0-9]$`)
 	ntfyShape   = regexp.MustCompile(`^https?://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9_-]{1,64}$`)
 )
@@ -115,7 +117,11 @@ func Validate(key, value string) string {
 			return "must be one of: " + strings.ReplaceAll(s.Rule, ",", ", ")
 		}
 	case "secret":
-		if value != "" && !tskey.MatchString(value) {
+		switch {
+		case value == "":
+		case s.Rule == "ntfy" && !ntfyToken.MatchString(value):
+			return "does not look like an ntfy access token (tk_...)"
+		case s.Rule == "" && !tskey.MatchString(value):
 			return "does not look like a Tailscale token"
 		}
 	case "ntfy":

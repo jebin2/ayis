@@ -152,7 +152,7 @@ func TestTheUserDataIsSmallAndHandsOver(t *testing.T) {
 }
 
 func TestTheBundleCarriesThePlanThePreludeAndEveryStage(t *testing.T) {
-	b, err := SupervisedBundle(repoFS(), "")
+	b, err := SupervisedBundle(repoFS(), Ntfy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestTheRealPlanRunsToTheEndUnderTheRealSupervisor(t *testing.T) {
 	if _, err := exec.LookPath("python3"); err != nil {
 		t.Skip("no python3")
 	}
-	b, err := SupervisedBundle(repoFS(), "")
+	b, err := SupervisedBundle(repoFS(), Ntfy{})
 	if err != nil {
 		t.Fatal(err)
 	}

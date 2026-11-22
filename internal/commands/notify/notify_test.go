@@ -72,3 +72,25 @@ func TestEveryRefusalIsSaidWithoutTheTopic(t *testing.T) {
 		t.Errorf("a server error is not a send: %d %s", rc, e.String())
 	}
 }
+
+// A protected topic: the test message and every later one carry its token, and
+// the token is never printed.
+func TestAProtectedTopicIsSentToWithItsToken(t *testing.T) {
+	var auth []string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth = append(auth, r.Header.Get("Authorization"))
+	}))
+	defer s.Close()
+	e := env(t, "GAME_NTFY_URL="+s.URL+"/topic-abc\nGAME_NTFY_TOKEN=tk_secrettoken123")
+	out, o, er := outs()
+	if rc := Send(context.Background(), nil, e, out); rc != 0 {
+		t.Fatalf("rc %d %s", rc, er.String())
+	}
+	Push(context.Background(), nil, e, out, "T", "M", "high", "x")
+	if strings.Join(auth, ",") != "Bearer tk_secrettoken123,Bearer tk_secrettoken123" {
+		t.Errorf("authorization %v", auth)
+	}
+	if strings.Contains(o.String()+er.String(), "tk_secret") {
+		t.Error("the token was printed")
+	}
+}

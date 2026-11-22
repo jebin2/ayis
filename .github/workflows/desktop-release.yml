@@ -214,6 +214,12 @@ jobs:
     # the run and nothing else.
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    # Attestations are signed with the run's own identity (OIDC) and stored by
+    # GitHub. Free, and they tie each file to this workflow, commit and tag.
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
@@ -223,6 +229,22 @@ jobs:
       - name: Display Structure
         run: ls -R artifacts
 
+      # SHA256SUMS: one line per download, so a person can check what they got:
+      #   sha256sum -c --ignore-missing SHA256SUMS
+      - name: Checksums
+        run: |
+          mkdir -p dist
+          find artifacts -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.pacman' -o -name '*.tar.gz' \
+            -o -name '*.dmg' -o -name '*-portable.exe' \) -exec cp {} dist/ \;
+          (cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS)
+
+      # Build provenance: `gh attestation verify <file> --repo <owner>/ayis`
+      # proves the file was built by this workflow from this repository.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: 'dist/*'
+
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
@@ -231,12 +253,7 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
           files: |
-            artifacts/**/*.AppImage
-            artifacts/**/*.deb
-            artifacts/**/*.pacman
-            artifacts/**/*.tar.gz
-            artifacts/**/*.dmg
-            artifacts/**/*-portable.exe
+            dist/*
           # Said on every release: what the download actually is, and what it
           # still needs from you before it can build anything on AWS.
           body: |

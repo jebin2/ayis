@@ -39,6 +39,7 @@ func Send(ctx context.Context, client *http.Client, env *config.Env, out *output
 	if err == nil {
 		req.Header.Set("Title", "Test message")
 		req.Header.Set("Tags", "bell")
+		authorize(req, env)
 		var resp *http.Response
 		if resp, err = client.Do(req); err == nil {
 			resp.Body.Close()
@@ -77,6 +78,7 @@ func Push(ctx context.Context, client *http.Client, env *config.Env, out *output
 		req.Header.Set("Title", title)
 		req.Header.Set("Priority", priority)
 		req.Header.Set("Tags", tags)
+		authorize(req, env)
 		var resp *http.Response
 		if resp, err = client.Do(req); err == nil {
 			resp.Body.Close()
@@ -87,5 +89,13 @@ func Push(ctx context.Context, client *http.Client, env *config.Env, out *output
 	}
 	if err != nil {
 		out.Log("notification not sent (ignored)")
+	}
+}
+
+// authorize adds the topic's access token (GAME_NTFY_TOKEN) to a request, for a
+// protected topic; a public one needs none.
+func authorize(req *http.Request, env *config.Env) {
+	if t := env.Get("GAME_NTFY_TOKEN"); t != "" {
+		req.Header.Set("Authorization", "Bearer "+t)
 	}
 }

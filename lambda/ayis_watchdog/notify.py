@@ -6,8 +6,10 @@ from .common import say
 
 
 def send(url: str, title: str, message: str, priority: str, tags: str) -> None:
-    req = urllib.request.Request(url, data=message.encode("utf-8"), method="POST",
-                                 headers={"Title": title, "Priority": priority, "Tags": tags})
+    headers = {"Title": title, "Priority": priority, "Tags": tags}
+    if settings.NTFY_TOKEN:
+        headers["Authorization"] = "Bearer " + settings.NTFY_TOKEN
+    req = urllib.request.Request(url, data=message.encode("utf-8"), method="POST", headers=headers)
     with urllib.request.urlopen(req, timeout=5) as resp:
         resp.read()
 

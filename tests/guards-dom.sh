@@ -76,7 +76,7 @@ cat > "$T/r/probe.js" <<'PROBE'
       // A laptop that plays on AWS: a region chosen is what makes it one.
       { key: 'GAME_REGION', kind: 'region', secret: false, is_set: true, value: 'ap-south-2', default: 'ap-south-2', effective: 'ap-south-2', note: 'n', label: 'region', group: 'The box' }];
     window.__CFG = CFG;
-    paintConfig([
+    window.__lastConfig = [
       { key: 'GAME_BUDGET_INR', kind: 'number', secret: false, is_set: true, value: '5000', default: '5000',
         note: 'Monthly budget. It emails you; it stops nothing.', label: 'monthly budget (INR)', group: 'The guards' },
       { key: 'GAME_WATCHDOG_IDLE_MIN', kind: 'number', secret: false, is_set: true, value: '45', default: '30',
@@ -86,10 +86,22 @@ cat > "$T/r/probe.js" <<'PROBE'
       { key: 'GAME_WATCHDOG_STUCK_MIN', kind: 'number', secret: false, is_set: false, value: null, default: '60',
         note: 'n', label: 'stuck shutdown forced after (min)', group: 'The guards' },
       { key: 'GAME_REGION', kind: 'region', secret: false, is_set: true, value: 'ap-south-2', default: 'ap-south-2', effective: 'ap-south-2', note: 'n', label: 'region', group: 'The box' },
-    ]);
+    ];
+    paintConfig(window.__lastConfig);
     paintGuards(W('none', { armed: null, state: 'no box' },
                   { armed: true, state: 'armed', last_decision: 'nothing running - nothing to do', last_decision_age_s: 1500 }));
     read('IDLE');
+    out.push('PUBLIC WARN | ' + (document.querySelector('#g-knobs [data-warn=public-topic]') ? 'shown' : 'none'));
+    // The same topic with an access token: private, no warning, and the token's own row.
+    const withToken = [...window.__lastConfig, { key: 'GAME_NTFY_TOKEN', kind: 'secret', secret: true, is_set: true, value: null,
+      default: null, rule: 'ntfy', note: 'n', label: 'phone notifications token', group: 'Notifications' }];
+    paintConfig(withToken);
+    paintGuards(W('none', { armed: null, state: 'no box' }, { armed: true, state: 'armed' }));
+    out.push('TOKEN WARN | ' + (document.querySelector('#g-knobs [data-warn=public-topic]') ? 'shown' : 'none'));
+    out.push('TOKEN ROW | ' + ([...document.getElementById('g-knobs').children].find(r => r.dataset.key === 'GAME_NTFY_TOKEN') || { innerText: 'missing' }).innerText.replace(/\s+/g, ' ').trim());
+    paintConfig(window.__lastConfig);
+    paintGuards(W('none', { armed: null, state: 'no box' },
+                  { armed: true, state: 'armed', last_decision: 'nothing running - nothing to do', last_decision_age_s: 1500 }));
     // Edit then Cancel changes nothing, so it reads nothing: it used to call
     // refresh(), and the Refresh popup came up over a row nobody changed.
     const knob = () => document.getElementById('g-knobs').children[0];
@@ -253,7 +265,12 @@ contains "a minute setting in minutes"   "$(row 'IDLE KNOBS')" "45 min"
 contains "  and an unset one says it is the default" "$(row 'IDLE KNOBS')" "60 min (default)"
 
 # The topic is shown, like every other row's value, and Edit opens on it.
-contains "phone notifications show the topic" "$(row 'IDLE KNOBS')" "Phone alerts ntfy topic. Empty disables phone alerts. my-topic-q7 Edit"
+contains "phone notifications show the topic" "$(row 'IDLE KNOBS')" "my-topic-q7 Edit"
+contains "  a public topic with no token is warned of" "$(row 'IDLE KNOBS')" "Phone alerts Public topic: anyone who learns its name can read these alerts, costs included."
+check    "  marked as a warning"                 "$(row 'PUBLIC WARN')" "PUBLIC WARN | shown"
+check    "  with an access token, no warning"    "$(row 'TOKEN WARN')" "TOKEN WARN | none"
+contains "  and the token has its own row, never shown" "$(row 'TOKEN ROW')" "Alerts access token An ntfy token (tk_…) for a topic only you can read. Optional."
+contains "  replaced, not read"                  "$(row 'TOKEN ROW')" "Replace"
 lacks    "  not 'set'"                   "$(row 'IDLE KNOBS')" "alerts off. Set"
 lacks    "  nor Replace"                 "$(row 'IDLE KNOBS')" "Replace"
 check    "  and Edit opens on it"        "$(row 'NTFY EDIT')" "NTFY EDIT | text my-topic-q7"

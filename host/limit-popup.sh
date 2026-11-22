@@ -16,7 +16,11 @@ FETCH="${LIMIT_POPUP_FETCH:-curl -fsS -m 10}"
 # Since the last message seen; the first run looks back 2 minutes, not at history.
 since=$(cat "$STATE" 2>/dev/null || true)
 [[ -n $since ]] || since=2m
-body=$($FETCH "${AYIS_NTFY_URL%/}/json?poll=1&since=$since" 2>/dev/null) || exit 0
+# A protected topic is read with its token, as it is written with it.
+auth=()
+[[ -n ${AYIS_NTFY_TOKEN:-} ]] && auth=(-H "Authorization: Bearer $AYIS_NTFY_TOKEN")
+# shellcheck disable=SC2086  # FETCH is a command line, split on purpose
+body=$($FETCH "${auth[@]}" "${AYIS_NTFY_URL%/}/json?poll=1&since=$since" 2>/dev/null) || exit 0
 
 # One line per message to show: id, title, message, all tab-separated.
 msgs=$(printf '%s\n' "$body" | python3 -c '

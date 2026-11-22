@@ -15,7 +15,7 @@ BASE = {
     # What ayis passes at deploy: the Lambda holds no price of its own.
     "S3_USD_PER_GB": 0.025, "INR_PER_USD": 88.0, "OD_USD_HOUR": None,
     "MAX_HOURS_MONTH": 0, "MAX_SESSION_HOURS": 0, "BLOCK_POLICY_ARN": "",
-    "NTFY_URL": "", "TRAIL_PAGES": 40,
+    "NTFY_URL": "", "NTFY_TOKEN": "", "TRAIL_PAGES": 40,
 }
 
 
