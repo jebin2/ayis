@@ -47,6 +47,7 @@ type Settings struct {
 	BlockPolicyARN  string
 	S3GBMonth       string // the price as ayis has it ("0.025"); "" when unknown
 	INRPerUSD       string // "" when unknown
+	ODUSDHour       string // an on-demand hour of the machine type; "" when unknown
 }
 
 // Env is the function's environment, in the form `aws lambda` takes it, and
@@ -67,10 +68,10 @@ func (s Settings) Env() string {
 	}
 	// The limits come last, and only when on: a watchdog deployed without them
 	// keeps the exact text - and so the fingerprint - it was deployed with.
-	return fmt.Sprintf("Variables={AYIS_TS_HOST=%s,AYIS_IDLE_MINUTES=%d,AYIS_BOOT_GRACE_MINUTES=%d,AYIS_STUCK_MINUTES=%d,AYIS_BUCKET=%s,AYIS_ACCOUNT=%s,AYIS_ARCHIVE_EXPIRY_DAYS=%d%s%s%s%s%s%s}",
+	return fmt.Sprintf("Variables={AYIS_TS_HOST=%s,AYIS_IDLE_MINUTES=%d,AYIS_BOOT_GRACE_MINUTES=%d,AYIS_STUCK_MINUTES=%d,AYIS_BUCKET=%s,AYIS_ACCOUNT=%s,AYIS_ARCHIVE_EXPIRY_DAYS=%d%s%s%s%s%s%s%s}",
 		s.Host, s.IdleMinutes, BootGrace, s.StuckMinutes, s.Bucket, s.Account, s.ExpiryDays,
 		opt("AYIS_S3_USD_GB_MONTH", s.S3GBMonth), opt("AYIS_INR_PER_USD", s.INRPerUSD), opt("AYIS_NTFY_URL", s.NtfyURL),
-		num("AYIS_MAX_HOURS_MONTH", s.MaxHoursMonth), num("AYIS_MAX_SESSION_HOURS", s.MaxSessionHours), opt("AYIS_BLOCK_POLICY_ARN", s.BlockPolicyARN))
+		num("AYIS_MAX_HOURS_MONTH", s.MaxHoursMonth), num("AYIS_MAX_SESSION_HOURS", s.MaxSessionHours), opt("AYIS_BLOCK_POLICY_ARN", s.BlockPolicyARN), opt("AYIS_OD_USD_HOUR", s.ODUSDHour))
 }
 
 // EnvMap is the same environment as a map, for the API: the text form above is
@@ -95,6 +96,9 @@ func (s Settings) EnvMap() map[string]string {
 	}
 	if s.MaxSessionHours != 0 {
 		m["AYIS_MAX_SESSION_HOURS"] = fmt.Sprint(s.MaxSessionHours)
+	}
+	if s.ODUSDHour != "" {
+		m["AYIS_OD_USD_HOUR"] = s.ODUSDHour
 	}
 	if s.BlockPolicyARN != "" {
 		m["AYIS_BLOCK_POLICY_ARN"] = s.BlockPolicyARN
@@ -158,6 +162,14 @@ func (s Settings) Policy(region string) map[string]any {
 	if s.BlockPolicyARN != "" {
 		stmts = append(stmts, map[string]any{"Sid": "IsTheBudgetSpent", "Effect": "Allow",
 			"Action": "iam:ListEntitiesForPolicy", "Resource": s.BlockPolicyARN})
+	}
+	// What a hard limit's notification says it cost: the spot price now, and the
+	// month's spend from ayis's own budget. Both read only, and both free.
+	if s.MaxHoursMonth > 0 || s.MaxSessionHours > 0 || s.BlockPolicyARN != "" {
+		stmts = append(stmts,
+			map[string]any{"Sid": "WhatAnHourCosts", "Effect": "Allow", "Action": "ec2:DescribeSpotPriceHistory", "Resource": "*"},
+			map[string]any{"Sid": "WhatTheMonthCost", "Effect": "Allow", "Action": "budgets:ViewBudget",
+				"Resource": fmt.Sprintf("arn:aws:budgets::%s:budget/%s-monthly", s.Account, s.Host)})
 	}
 	if s.ExpiryDays > 0 {
 		stmts = append(stmts,

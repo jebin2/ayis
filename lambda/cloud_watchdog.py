@@ -91,6 +91,9 @@ def _rate(k):
         return None
 S3_USD_PER_GB = _rate("AYIS_S3_USD_GB_MONTH")
 INR_PER_USD = _rate("AYIS_INR_PER_USD")
+# An on-demand hour of the machine type ayis builds, in USD, for the cost in a
+# limit's notification. A spot hour is asked of AWS instead (free), since it moves.
+OD_USD_HOUR = _rate("AYIS_OD_USD_HOUR")
 
 # HARD LIMITS. The idle guards end a machine nobody uses; these end one somebody
 # IS using, because cost has to have a ceiling that does not depend on anybody
@@ -163,7 +166,8 @@ def handler(event, context):
     dry = isinstance(event, dict) and bool(event.get("dry_run"))
     return run_all(boto3.client("ec2"), boto3.client("cloudwatch"), boto3.client("s3"),
                    boto3.client("ssm"), boto3.client("cloudtrail"), datetime.now(timezone.utc), dry,
-                   s3_for, boto3.client("iam") if BLOCK_POLICY_ARN else None)
+                   s3_for, boto3.client("iam") if BLOCK_POLICY_ARN else None,
+                   boto3.client("budgets", region_name="us-east-1") if (MAX_HOURS_MONTH or MAX_SESSION_HOURS or BLOCK_POLICY_ARN) else None)
 
 
 def state_changed(ec2, event, cw=None, now=None, ssm=None, s3=None, sleep=None):
@@ -264,13 +268,13 @@ def drop_games_disk(ec2, s3, inst, sleep=None):
     return "deleted"
 
 
-def run_all(ec2, cw, s3, ssm, trail, now, dry=False, s3_for=None, iam=None):
+def run_all(ec2, cw, s3, ssm, trail, now, dry=False, s3_for=None, iam=None, budgets=None):
     """The hard limits, the idle check, then the archive check. Each runs even
     when one before it fails, and the invocation still counts as an error
     afterwards."""
     failure = None
     try:
-        lim = limits(ec2, ssm, iam, now, dry)
+        lim = limits(ec2, ssm, iam, now, dry, budgets)
     except Exception as exc:
         say("limits: check FAILED: %s" % exc)
         failure, lim = exc, None
@@ -385,7 +389,64 @@ def hours(secs):
     return "%.1fh" % (secs / 3600.0)
 
 
-def limits(ec2, ssm, iam, now, dry=False):
+def hourly_usd(ec2, inst):
+    """What an hour of this machine costs now, in USD, or None when unknown."""
+    if inst.get("InstanceLifecycle") != "spot":
+        return OD_USD_HOUR
+    try:
+        r = ec2.describe_spot_price_history(
+            InstanceTypes=[inst["InstanceType"]], ProductDescriptions=["Linux/UNIX"],
+            AvailabilityZone=inst["Placement"]["AvailabilityZone"], MaxResults=1)
+        h = r.get("SpotPriceHistory") or []
+        return float(h[0]["SpotPrice"]) if h else None
+    except Exception as exc:
+        say("limits: spot price unknown: %s" % exc)
+        return None
+
+
+def month_spend_usd(budgets):
+    """This month's AWS bill and budget, in USD, as AWS Budgets has them - (spent,
+    limit), either None when unknown. AWS updates the spend a few times a day."""
+    if budgets is None or not ACCOUNT:
+        return None, None
+    try:
+        b = budgets.describe_budget(AccountId=ACCOUNT, BudgetName=TS_HOST + "-monthly")["Budget"]
+        spent = float(b["CalculatedSpend"]["ActualSpend"]["Amount"])
+        cap = float(b["BudgetLimit"]["Amount"]) if b.get("BudgetLimit") else None
+        return spent, cap
+    except Exception as exc:
+        say("limits: the month's spend is unknown: %s" % exc)
+        return None, None
+
+
+def rupees(inr):
+    return "\u20b9{:,.0f}".format(inr)
+
+
+def cost_words(ec2, budgets, inst, now):
+    """What this session and this month have cost, for a person: "" when nothing
+    is known. Never raises - a notification goes out with or without it."""
+    if not INR_PER_USD:
+        return ""
+    out = []
+    try:
+        if inst is not None:
+            rate = hourly_usd(ec2, inst)
+            if rate is not None:
+                h = max(0.0, (now - inst["LaunchTime"]).total_seconds() / 3600)
+                out.append("This session: about %s so far (%.1f h at %s an hour)."
+                           % (rupees(rate * h * INR_PER_USD), h, rupees(rate * INR_PER_USD)))
+        spent, cap = month_spend_usd(budgets)
+        if spent is not None:
+            of = " of your %s budget" % rupees(cap * INR_PER_USD) if cap else ""
+            out.append("This month: about %s%s (AWS updates this a few times a day)."
+                       % (rupees(spent * INR_PER_USD), of))
+    except Exception as exc:
+        say("limits: cost unknown: %s" % exc)
+    return " ".join(out)
+
+
+def limits(ec2, ssm, iam, now, dry=False, budgets=None):
     """Ends a RUNNING machine at a hard limit, busy or not: the month's hours,
     the session's length, or a spent budget. Gracefully, like the idle stop -
     the games are saved on the way down. Warns once, LIMIT_WARN_MINUTES before."""
@@ -415,8 +476,9 @@ def limits(ec2, ssm, iam, now, dry=False):
                 say("limits: %s used of the %s monthly cap - ending the machine" % (hours(used), hours(cap)))
             elif running and left <= LIMIT_WARN_MINUTES * 60 and not u["warned"]:
                 if dry or notify("%d minutes of play left this month" % max(1, int(left // 60)),
-                                 "Your game PC switches off when this month's %s are used. To keep playing, "
-                                 "add hours in the ayis app (Safety)." % hours(cap), "high", "hourglass"):
+                                 ("Your game PC switches off when this month's %s are used. To keep playing, "
+                                  "add hours in the ayis app (Safety). %s" % (hours(cap), cost_words(ec2, budgets, running[0], now))).strip(),
+                                 "high", "hourglass"):
                     u["warned"] = True
             elif left > LIMIT_WARN_MINUTES * 60:
                 u["warned"] = False
@@ -448,8 +510,9 @@ def limits(ec2, ssm, iam, now, dry=False):
                 say("%s has run since %s, past its session limit (%s) - ending it" % (iid, iso(inst["LaunchTime"]), iso(deadline)))
             elif deadline - now <= timedelta(minutes=LIMIT_WARN_MINUTES) and tag_value(inst, SESSION_WARNED_TAG) != iso(deadline):
                 if not dry and notify("Game PC switches off in %d minutes" % max(1, minutes(deadline - now)),
-                                      "This session reaches its time limit. To keep playing, extend it in the "
-                                      "ayis app (Safety).", "high", "hourglass"):
+                                      ("This session reaches its time limit. To keep playing, extend it in the "
+                                       "ayis app (Safety). %s" % cost_words(ec2, budgets, inst, now)).strip(),
+                                      "high", "hourglass"):
                     ec2.create_tags(Resources=[iid], Tags=[{"Key": SESSION_WARNED_TAG, "Value": iso(deadline)}])
         if why is None:
             continue
@@ -473,7 +536,7 @@ def limits(ec2, ssm, iam, now, dry=False):
                        "AWS reports this month's budget as spent, so your game PC is switching off and new "
                        "ones cannot start. Your games are being saved."),
         }[why]
-        notify(title, body, "high", "stop_sign")
+        notify(title, (body + " " + cost_words(ec2, budgets, inst, now)).strip(), "high", "stop_sign")
         decisions.append({"instance": iid, "action": verb, "reason": why})
     if failure:
         raise failure

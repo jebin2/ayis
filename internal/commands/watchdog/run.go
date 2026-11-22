@@ -50,8 +50,11 @@ func NewReader(ctx context.Context, env *config.Env) (*wd.Reader, error) {
 }
 
 func ratesFrom(ctx context.Context, env *config.Env, us aws.Config) pricing.Rates {
-	return pricing.Load(ctx, pricing.Options{Getenv: env.Get,
-		Source: pricing.AWSSource{API: pricing.SDKProducts{Client: awspricing.NewFromConfig(us)}}}, env.Region())
+	products := pricing.SDKProducts{Client: awspricing.NewFromConfig(us)}
+	r := pricing.Load(ctx, pricing.Options{Getenv: env.Get, Source: pricing.AWSSource{API: products}}, env.Region())
+	// For the cost in a hard limit's notification. The Price List API is free.
+	r.MachineHour = pricing.OnDemandHourly(ctx, products, env.Setting("GAME_INSTANCE_TYPE"), env.Region())
+	return r
 }
 
 func ratesOf(ctx context.Context, env *config.Env) pricing.Rates {
@@ -84,6 +87,9 @@ func SettingsFor(env *config.Env, rates pricing.Rates, account string) wd.Settin
 	}
 	if rates.INRPerUSD != nil {
 		s.INRPerUSD = fmt.Sprintf("%.10g", *rates.INRPerUSD)
+	}
+	if rates.MachineHour != nil {
+		s.ODUSDHour = fmt.Sprintf("%.6g", *rates.MachineHour)
 	}
 	return s
 }

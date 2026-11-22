@@ -11,6 +11,9 @@ install -m 644 disk-monitor.timer   /etc/systemd/system/
 install -m 755 game-notify.sh /usr/local/bin/game-notify.sh
 install -m 644 game-notify.service /etc/systemd/system/
 install -m 644 game-notify.timer   /etc/systemd/system/
+install -m 755 limit-popup.sh /usr/local/bin/limit-popup.sh
+install -m 644 limit-popup.service /etc/systemd/system/
+install -m 644 limit-popup.timer   /etc/systemd/system/
 # Notifications: the build and ayis init put the ntfy URL beside this script when
 # GAME_NTFY_URL is set. No file means off - so removing the setting removes this.
 if [[ -s notify.url ]]; then
@@ -23,6 +26,7 @@ systemctl daemon-reload
 systemctl enable --now idle-watchdog.timer
 systemctl enable --now disk-monitor.timer
 systemctl enable --now game-notify.timer
+systemctl enable --now limit-popup.timer
 systemctl list-timers idle-watchdog.timer disk-monitor.timer game-notify.timer --no-pager
 echo "watchdog armed.     follow with: journalctl -t idle-watchdog -f"
 echo "disk monitor armed. follow with: journalctl -t disk-monitor -f"

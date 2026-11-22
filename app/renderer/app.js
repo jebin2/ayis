@@ -758,6 +758,8 @@ function renderMachineCard(card) {
     const row = el('div', 'flex flex-wrap items-center justify-between gap-space-sm mt-space-sm');
     const left = el('p', 'font-code-sm text-code-sm'); left.dataset.f = 'session';
     left.dataset.ends = box.session_ends;
+    left.dataset.launched = box.launched || '';
+    left.dataset.rate = price != null ? String(price) : '';
     const more = el('button', 'btn', '+1 hour'); more.dataset.f = 'session-more';
     more.onclick = async () => {
       more.disabled = true;
@@ -774,6 +776,30 @@ function renderMachineCard(card) {
 
 // The watchdog warns this long before (limits.WarnMinutes).
 const SESSION_WARN_MIN = 30;
+// What a session and the month have cost, in the words a notification uses:
+// the session from its hours and the hourly price, the month from the budget
+// AWS keeps (updated a few times a day, so "about").
+function sessionCost(n) {
+  const out = [];
+  const rate = parseFloat(n.dataset.rate), from = Date.parse(n.dataset.launched);
+  if (isFinite(rate) && isFinite(from)) {
+    const h = Math.max(0, (Date.now() - from) / 3600000);
+    out.push(`This session: about ${rs(rate * h)} so far (${h.toFixed(1)} h at ${rs(rate)} an hour).`);
+  }
+  const b = statusNow && statusNow.budget, inr = inrRate();
+  if (b && b.spent != null && isFinite(inr))
+    out.push(`This month: about ${rs(b.spent * inr)}${b.limit ? ` of your ${rs(b.limit * inr)} budget` : ''}.`);
+  return out.join(' ');
+}
+// Each warning once per deadline: an extension moves the deadline, and so warns again.
+const sessionTold = new Set();
+function tellSession(key, title, body) {
+  if (sessionTold.has(key)) return;
+  sessionTold.add(key);
+  note(`${title}. ${body}`, 'text-error');
+  try { new Notification(title, { body }); } catch { /* the note above still says it */ }
+}
+
 // Every countdown to a session's end, redrawn each 15 s between reads: the time
 // it ends comes from `ayis status`, the minutes left from the clock here.
 function tickSessions() {
@@ -781,6 +807,12 @@ function tickSessions() {
     const ends = Date.parse(n.dataset.ends);
     if (!isFinite(ends)) continue;
     const left = Math.max(0, Math.floor((ends - Date.now()) / 60000));
+    if (left === 0 && Date.now() - ends < 15 * 60000)
+      tellSession(`${n.dataset.ends}:off`, 'Session time limit reached',
+        `Your game PC is switching off and your games are being saved. ${sessionCost(n)}`.trim());
+    else if (left > 0 && left <= SESSION_WARN_MIN)
+      tellSession(`${n.dataset.ends}:warn`, `Game PC switches off in ${left} minutes`,
+        `To keep playing, press +1 hour. ${sessionCost(n)}`.trim());
     const at = new Date(ends).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
     const span = left >= 60 ? `${Math.floor(left / 60)} h ${left % 60} min` : `${left} min`;
     n.textContent = left > 0 ? `Session limit: switches off at ${at} · ${span} left`

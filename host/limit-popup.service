@@ -1,0 +1,8 @@
+[Unit]
+Description=Show the cloud watchdog's time and budget limit warnings on the desktop
+
+[Service]
+Type=oneshot
+# Written by install-watchdog.sh only when notifications are configured.
+EnvironmentFile=-/etc/ayis-notify.conf
+ExecStart=/usr/local/bin/limit-popup.sh

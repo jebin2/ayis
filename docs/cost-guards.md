@@ -43,9 +43,21 @@ its games on the way down, exactly as for an idle stop.
 | One session | `GAME_MAX_SESSION_HOURS` | 6 | the machine is switched off | `ayis limits extend-session [hours]`, or press Play for a new session |
 | The AWS budget | `GAME_BUDGET_INR` | 5000 | AWS attaches a deny policy, so no machine of this host can launch or start; the watchdog sees it and switches the running one off | `ayis limits unblock` - AWS then leaves it until next month |
 
-Each warns 30 minutes before (a phone notification, once per deadline), and `0` turns either
-hour limit off. In the app, all of it is the **Hard limits** card on Safety, with the buttons
-beside each. `ayis limits` says where each stands.
+Each warns 30 minutes before, once per deadline, and `0` turns either hour limit off. In the
+app, all of it is the **Hard limits** card on Safety, with the buttons beside each; a running
+session also counts down on Home and the Machine page, with **+1 hour** beside it. `ayis limits`
+says where each stands.
+
+The warning, and the message when the machine is switched off, say what it cost: this session
+(its hours times the hourly price - the on-demand price ayis deployed the watchdog with, or the
+spot price AWS reports now) and this month (the spend on ayis's AWS budget, which AWS updates a
+few times a day, so "about"). They arrive in three places:
+
+- **The phone**, through the ntfy topic (`GAME_NTFY_URL`).
+- **The game PC's screen**, inside the stream: `limit-popup.timer` on the machine reads the
+  same topic back every minute and shows the limit messages, and only those. It needs the ntfy
+  topic, and is installed by a build.
+- **The app**, as a desktop notification while it is open.
 
 - **The month** is the calendar month in UTC, as AWS bills it - in India it resets at 05:30 on
   the 1st. Hours are machine hours, on demand or spot. The count lives in a free SSM parameter,

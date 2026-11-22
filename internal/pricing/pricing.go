@@ -50,6 +50,10 @@ type Rates struct {
 	// every rupee figure is made with.
 	FXINRPerUSD *float64
 	INRPerUSD   *float64
+
+	// MachineHour is an on-demand hour of the configured machine type, in USD.
+	// Load leaves it nil; a caller that needs it asks OnDemandHourly.
+	MachineHour *float64
 }
 
 func (r *Rates) field(key string) **float64 {

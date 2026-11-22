@@ -130,16 +130,28 @@ func TestLimitsOffKeepTheDeployedText(t *testing.T) {
 		!strings.HasSuffix(on, ",AYIS_MAX_HOURS_MONTH=60,AYIS_MAX_SESSION_HOURS=6,AYIS_BLOCK_POLICY_ARN=arn:aws:iam::1:policy/ayis-budget-block}") {
 		t.Errorf("limits go last: %s", on)
 	}
+	s.ODUSDHour = "0.526"
+	if !strings.HasSuffix(s.Env(), ",AYIS_OD_USD_HOUR=0.526}") || s.EnvMap()["AYIS_OD_USD_HOUR"] != "0.526" {
+		t.Errorf("the hour's price goes last: %s", s.Env())
+	}
 	m := s.EnvMap()
 	if m["AYIS_MAX_HOURS_MONTH"] != "60" || m["AYIS_MAX_SESSION_HOURS"] != "6" || m["AYIS_BLOCK_POLICY_ARN"] == "" {
 		t.Errorf("map: %v", m)
 	}
 }
 
+func TestNoLimitsNoCostReads(t *testing.T) {
+	p := jsonMust(Settings{Host: "ayis", Account: "1"}.Policy("ap-south-1"))
+	if strings.Contains(p, "budgets:") || strings.Contains(p, "SpotPrice") {
+		t.Errorf("cost reads without limits: %s", p)
+	}
+}
+
 func TestPolicyForLimits(t *testing.T) {
 	s := Settings{Host: "ayis", Account: "1", ExpiryDays: 0, MaxHoursMonth: 60, BlockPolicyARN: "arn:aws:iam::1:policy/ayis-budget-block"}
 	p := jsonMust(s.Policy("ap-south-1"))
-	for _, want := range []string{`"Sid":"UsageMarks"`, `"ssm:PutParameter"`, `"iam:ListEntitiesForPolicy"`, `"Resource":"arn:aws:iam::1:policy/ayis-budget-block"`, `"ayis-session-warned"`} {
+	for _, want := range []string{`"Sid":"UsageMarks"`, `"ssm:PutParameter"`, `"iam:ListEntitiesForPolicy"`, `"Resource":"arn:aws:iam::1:policy/ayis-budget-block"`, `"ayis-session-warned"`,
+		`"ec2:DescribeSpotPriceHistory"`, `"budgets:ViewBudget"`, `"Resource":"arn:aws:budgets::1:budget/ayis-monthly"`} {
 		if !strings.Contains(p, want) {
 			t.Errorf("policy lacks %s: %s", want, p)
 		}

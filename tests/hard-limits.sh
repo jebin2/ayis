@@ -188,4 +188,32 @@ echo "19. AWS not answering: an error, not all clear"
 r=$(case_ 'w.MAX_SESSION_HOURS = 1; ec2 = EC2(fails=True)')
 check "raised" "$(field 1 "$r")" "RAISED"
 
+echo "20. the cost in a notification: this session and this month, or nothing"
+words() {
+  PYTHONDONTWRITEBYTECODE=1 python3 - "$1" <<'PY' 2>/dev/null
+import sys
+from datetime import datetime, timedelta, timezone
+sys.path.insert(0, "lambda")
+import cloud_watchdog as w
+w.INR_PER_USD, w.OD_USD_HOUR, w.ACCOUNT, w.TS_HOST = 100.0, 0.5, "1", "ayis"
+now = datetime(2026, 11, 20, 12, tzinfo=timezone.utc)
+class E:
+    def describe_spot_price_history(s, **k): return {"SpotPriceHistory": [{"SpotPrice": "0.2"}]}
+class B:
+    def describe_budget(s, **k):
+        return {"Budget": {"CalculatedSpend": {"ActualSpend": {"Amount": "12.3"}}, "BudgetLimit": {"Amount": "50"}}}
+inst = {"LaunchTime": now - timedelta(hours=2), "InstanceType": "g4dn.xlarge", "Placement": {"AvailabilityZone": "a"}}
+ec2, budgets = E(), B()
+exec(sys.argv[1])
+print(w.cost_words(ec2, budgets, inst, now))
+PY
+}
+# The log lines go to stdout too; the words are the last line.
+words_() { words "$1" | tail -n 1; }
+contains "on-demand session" "$(words_ '')" "This session: about ₹100 so far (2.0 h at ₹50 an hour)."
+contains "the month, from the budget" "$(words_ '')" "This month: about ₹1,230 of your ₹5,000 budget"
+contains "spot asks AWS for the price" "$(words_ 'inst["InstanceLifecycle"] = "spot"')" "at ₹20 an hour"
+check "no exchange rate: nothing" "$(words_ 'w.INR_PER_USD = None')" ""
+check "AWS not answering: no words, no error" "$(words_ 'ec2, budgets = object(), None; inst["InstanceLifecycle"] = "spot"')" ""
+
 echo; echo "passed $pass, failed $fail"; [[ $fail -eq 0 ]]
