@@ -137,7 +137,7 @@ func TestABodyIsReadableAfterTheCallReturns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer o.Body.Close()
+	defer func() { _ = o.Body.Close() }()
 	b, err := io.ReadAll(o.Body)
 	if err != nil || len(b) != len(body) {
 		t.Fatalf("the body was cut off after the call returned: %d of %d bytes, %v", len(b), len(body), err)

@@ -97,9 +97,9 @@ func (o *Out) Fail(err error) {
 		o.Event("error", "text", err.Error(), "class", string(class), "hint", hint)
 		return
 	}
-	fmt.Fprintf(o.Stderr, "%s  error: %s\n", o.ts(), err.Error())
+	_, _ = fmt.Fprintf(o.Stderr, "%s  error: %s\n", o.ts(), err.Error())
 	if hint != "" {
-		fmt.Fprintf(o.Stderr, "       %s\n", hint)
+		_, _ = fmt.Fprintf(o.Stderr, "       %s\n", hint)
 	}
 }
 
