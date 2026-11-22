@@ -4,13 +4,15 @@
 # any other build the latest one to start is the one running, as always.
 set -uo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck source=tests/lib/renderer.sh
+source tests/lib/renderer.sh
 pass=0; fail=0
 check() { if [[ $2 == "$3" ]]; then echo "  ok   $1"; pass=$((pass+1));
           else echo "  FAIL $1: got '$2' want '$3'"; fail=$((fail+1)); fi; }
 command -v node >/dev/null || { echo "  (no node - skipped)"; echo "parts: 0 passed, 0 failed"; exit 0; }
 js() { # js <expression using partStates>
   node -e "
-const src = require('fs').readFileSync('app/renderer/app.js', 'utf8');
+const src = require('fs').readFileSync(process.env.RENDERER_ALL, 'utf8');
 const parts = src.match(/const BUILD_PARTS = \[[\s\S]*?\n\];/)[0];
 const fn = src.match(/function partStates\([\s\S]*?\n}\n/)[0];
 eval(parts + fn + '; globalThis.out = ' + process.argv[1]);

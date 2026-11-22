@@ -18,6 +18,8 @@
 # required without starting Electron. It is main/repo.js now, so this can.
 set -uo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck source=tests/lib/renderer.sh
+source tests/lib/renderer.sh
 T=$(mktemp -d); pass=0; fail=0
 trap 'rm -rf "$T"' EXIT
 export HOME="$T"          # nothing here may read the real home
@@ -136,7 +138,7 @@ contains "  a spawn error settles it"          "$runner" "settle(127)"
 contains "  and close is a backstop"           "$runner" "child.on('close', () => settle(1))"
 
 echo "8. a failed READ is no longer silent"
-js=$(cat app/renderer/app.js)
+js=$(cat "$RENDERER_ALL")
 contains "a non-zero read is reported"   "$js" "event.rc !== 0 || failure"
 # Kept in a map rather than painted where it happens. It used to be written to a
 # line in the header that updateHeader() rewrites whenever ANY job starts or
@@ -149,7 +151,7 @@ contains "  naming why it could not run" "$js" "could not run:"
 contains "  and the reason is kept"      "$js" "if (event.t === 'error' && event.text) job.err"
 # The message goes on the same line the header rewrites, so it has to be set
 # after updateHeader - put before it, it was overwritten in the same tick.
-handler=$(awk '/if \(event.t === .exit.\)/,/if \(isWrite\(job.cmd\)\)/' app/renderer/app.js)
+handler=$(awk '/if \(event.t === .exit.\)/,/if \(isWrite\(job.cmd\)\)/' "$RENDERER_ALL")
 order=$(grep -nE "updateHeader\(\);|event.rc !== 0 \|\| failure" <<<"$handler" \
         | sed -E 's/.*(updateHeader|\|\| failure).*/\1/' | head -2 | tr '\n' ' ')
 check "the failure is recorded after updateHeader" "$order" "updateHeader || failure "
@@ -161,7 +163,7 @@ contains "  and names the painter it could not find" "$js" "no painter for"
 # Nothing writes a command name into the window's furniture any more: the
 # header line that did is gone, and the pipeline's pane carries ayis's own output
 # instead - see tests/startup-gate-*.sh.
-check "the header has no command line"   "$(grep -c 'job-line' app/renderer/index.html app/renderer/app.js | grep -vc ':0')" "0"
+check "the header has no command line"   "$(grep -c 'job-line' app/renderer/index.html "$RENDERER_ALL" | grep -vc ':0')" "0"
 
 echo ""
 echo "app-packaged: $pass passed, $fail failed"

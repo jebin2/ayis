@@ -988,6 +988,20 @@ The ids are the old first-run screen's, whose steps these are. -->
   <span><b class="pad-key">LB</b><b class="pad-key">RB</b>Page</span>
   <span><b class="pad-key">✥</b>Move</span>
 </div>
-<script src="app.js"></script>
+<!-- The renderer, in load order: one shared scope, so the order matters (docs/architecture.md, "The app"). -->
+<script src="js/core.js"></script>
+<script src="js/machine-card.js"></script>
+<script src="js/home.js"></script>
+<script src="js/cost.js"></script>
+<script src="js/games.js"></script>
+<script src="js/safety.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/build.js"></script>
+<script src="js/hosts.js"></script>
+<script src="js/add-machine.js"></script>
+<script src="js/reads.js"></script>
+<script src="js/onboarding.js"></script>
+<script src="js/actions.js"></script>
+<script src="js/gamepad.js"></script>
 </body>
 </html>

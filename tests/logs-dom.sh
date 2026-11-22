@@ -21,7 +21,7 @@ done
 [[ -n $BROWSER ]] || { echo "  (no chromium - skipped)"; echo "logs-dom: 0 passed, 0 failed"; exit 0; }
 
 mkdir -p "$T/r"
-cp app/renderer/index.html app/renderer/app.js "$T/r/"
+cp -r app/renderer/index.html app/renderer/js "$T/r/"
 cp app/renderer/*.css "$T/r/"
 cp -r app/renderer/fonts "$T/r/" 2>/dev/null || true
 
@@ -94,7 +94,7 @@ python3 -I - "$T/r" <<'PY'
 import pathlib, sys
 p = pathlib.Path(sys.argv[1]) / "index.html"
 t = p.read_text()
-t = t.replace('<script src="app.js"', '<script src="stub.js"></script>\n<script src="app.js"', 1)
+t = t.replace('<script src="js/core.js"', '<script src="stub.js"></script>\n<script src="js/core.js"', 1)
 t = t.replace('</body>', '<script>document.querySelectorAll("section[data-view]").forEach(s => s.hidden = s.dataset.view !== "guards")</script>\n<script src="probe.js"></script>\n</body>', 1)
 p.write_text(t)
 PY

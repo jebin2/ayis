@@ -6,6 +6,8 @@
 # cheap and they are the reason that rule holds.
 set -uo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck source=tests/lib/renderer.sh
+source tests/lib/renderer.sh
 pass=0; fail=0
 check()    { if [[ $2 == "$3" ]]; then echo "  ok   $1"; pass=$((pass+1));
              else echo "  FAIL $1: got '$2' want '$3'"; fail=$((fail+1)); fi; }
@@ -38,7 +40,7 @@ check "  and no AWS dependency"          "$(node -e 'const p=require("./app/pack
 check "the renderer never spawns anything" "$(grep -rc 'child_process' app/renderer 2>/dev/null | grep -vc ':0')" "0"
 
 echo "3. the window is locked down"
-main=$(cat app/main/index.js); js=$(cat app/renderer/app.js); html=$(cat app/renderer/index.html)
+main=$(cat app/main/index.js); js=$(cat "$RENDERER_ALL"); html=$(cat app/renderer/index.html)
 # The hand-written stylesheet, not the Tailwind build: component rules live here.
 css=$(cat app/renderer/src.css)
 contains "context isolation"             "$main" "contextIsolation: true"
@@ -81,14 +83,14 @@ contains "the icon font is wired up"     "$(cat app/renderer/src.css)" "Material
 # Google's icon subsetting drops the ligatures, so writing an icon's NAME in the
 # markup renders the word: "dashboardDashboard" in the sidebar. Icons are
 # addressed by codepoint, with the name kept in data-icon for readability.
-check "no icon is written as its name"   "$(grep -c 'material-symbols-outlined[^>]*>[a-z_]\+<' app/renderer/index.html app/renderer/app.js | grep -vc ':0')" "0"
+check "no icon is written as its name"   "$(grep -c 'material-symbols-outlined[^>]*>[a-z_]\+<' app/renderer/index.html "$RENDERER_ALL" | grep -vc ':0')" "0"
 if python3 -c 'import fontTools, brotli' 2>/dev/null; then
   check "every codepoint exists in the vendored font" "$(python3 - <<'PY'
 import re
 from fontTools.ttLib import TTFont
 # The markup writes &#xe871; and the renderer writes "\ue8f4" - check both, or an
 # icon built in JavaScript can point at a glyph the subset does not carry.
-text = open("app/renderer/index.html").read() + open("app/renderer/app.js").read()
+text = open("app/renderer/index.html").read() + open(__import__('os').environ['RENDERER_ALL']).read()
 codes = set(re.findall(r'&#x([0-9a-f]{4});', text)) | set(re.findall(r'\\u(e[0-9a-f]{3})', text))
 cmap = TTFont("app/renderer/fonts/msym-1.woff2").getBestCmap()
 print(len([c for c in codes if int(c, 16) not in cmap]))
@@ -171,14 +173,14 @@ contains "  and says so when they differ" "$js" "ayis no longer asks under"
 # Every id the window names must be one ayis actually asks under.
 for id in $(python3 -I -c "
 import re, sys
-src = open('app/renderer/app.js').read()
+src = open(__import__('os').environ['RENDERER_ALL']).read()
 block = re.search(r'const ASK = \{(.*?)\n\};', src, re.S).group(1)
 print(' '.join(re.findall(r\"'([^']+)'\", block)))"); do
   contains "  $id is one of ayis's"        "$asks" "$id"
 done
 # And each is written down once: a second copy is the drift this removed.
 for id in aws-access-key-id aws-secret-access-key tailscale-api-token tailscale-auth-key; do
-  check  "  $id appears once"            "$(grep -c "'$id'" app/renderer/app.js)" "1"
+  check  "  $id appears once"            "$(grep -c "'$id'" "$RENDERER_ALL")" "1"
 done
 contains "quitting mid-run asks first"   "$main" "before-quit"
 contains "the cost refresh carries its price" "$(tr -s ' ' < app/renderer/index.html)" 'id="refresh-cost"'
@@ -187,7 +189,7 @@ contains "  shown only on the cost screen" "$js" "refresh-cost').hidden = view !
 # for it without anyone touching the machine, and `ayis cost` is $0.01 a call. The one
 # read on a timer asks the MACHINE (ayis games --json --box, over SSH), only on the
 # Games page, and stops when it is left; the next check holds it to that.
-check    "nothing repeats on an interval"    "$(grep -c 'setInterval' app/renderer/app.js)" "0"
+check    "nothing repeats on an interval"    "$(grep -c 'setInterval' "$RENDERER_ALL")" "0"
 contains "  the one timed read asks the machine, never AWS" "$js" "runAyis(['games', '--json', '--box'], { capture: true })"
 contains "  only on the Games page"           "$js" "if (view !== 'library' || !box || box.state !== 'running' || pcReading) return paintBoxGames();"
 # A machine moved to another region re-reads BOTH halves of the library: the old
@@ -230,7 +232,7 @@ PY
 )" "0"
 contains "  and hidden where it means nothing" "$js" "(!NEEDS[view] && view !== 'cost')" 
 contains "cost reads the same one call"  "$js" "v === 'cost' ? [[['cost', '--json'], 'cost']]"
-check    "no button is left mid-page"    "$(grep -c 'cost-run' app/renderer/index.html app/renderer/app.js | grep -vc ':0')" "0"
+check    "no button is left mid-page"    "$(grep -c 'cost-run' app/renderer/index.html "$RENDERER_ALL" | grep -vc ':0')" "0"
 
 echo "5a. adding a machine: its steps"
 # There is no setup screen: Home opens every time, and setting a machine up is
@@ -281,18 +283,18 @@ contains "the choice shows ayis's numbers" "$js" "best ? best.inr_hour_spot : nu
 contains "  and why one cannot be used"  "$js" "No GPU limit here yet"
 # The popup and the header line are gone, and nothing may bring them back.
 check "no popup is left"                 "$(grep -c \"id=.stage\" app/renderer/index.html)" "0"
-check "  nor the header's command line"  "$(grep -c 'job-line' app/renderer/index.html app/renderer/app.js | grep -vc ':0')" "0"
+check "  nor the header's command line"  "$(grep -c 'job-line' app/renderer/index.html "$RENDERER_ALL" | grep -vc ':0')" "0"
 # Nothing polls AWS: a window that asked AWS something every so often would bill
 # for it without anyone touching the machine.
-check "nothing repeats on an interval"   "$(grep -c 'setInterval' app/renderer/app.js)" "0"
+check "nothing repeats on an interval"   "$(grep -c 'setInterval' "$RENDERER_ALL")" "0"
 # Two delays. One starts no command: the finished steps are held on screen for a
 # beat so you see them finish, instead of six ticks flashing for 200ms. The other
 # is the Games page's read of the machine (above), which asks no one but the box.
 # The third is Stop machine waiting, 20 seconds at most, for the session to end.
 # The fourth redraws a session's countdown from the clock here, only while one is
 # on screen; it starts no command and asks AWS nothing.
-check "  and four delays, which they are" "$(grep -c 'setTimeout' app/renderer/app.js)" "4"
-contains "  the countdown's asks only the clock" "$(tr -s ' ' < app/renderer/app.js)" "sessionTimer = setTimeout(() => { sessionTimer = null; tickSessions(); }, 15000);"
+check "  and four delays, which they are" "$(grep -c 'setTimeout' "$RENDERER_ALL")" "4"
+contains "  the countdown's asks only the clock" "$(tr -s ' ' < "$RENDERER_ALL")" "sessionTimer = setTimeout(() => { sessionTimer = null; tickSessions(); }, 15000);"
 contains "  the handover beat"           "$js" 'function afterBeat(then, ms = ONB_HANDOVER_MS) { return setTimeout(then, ms); }'
 contains "  after which it closes on the card" "$js" "note('AWS added', 'text-primary'); closeAdd();"
 # Home is never hidden: with no machine it asks the one question instead.
@@ -347,7 +349,7 @@ contains "  a game that failed can be tried again" "$html" 'id="restoredlg-retry
 contains "  the games are asked for by id and size" "$js" "'--games', pick.games.map"
 contains "  the steps list has the restore only when games were asked for" "$js" "d.id !== 'open.restore' || (r && r.restore)"
 contains "the machine comes from ayis"     "$js" "const spec = s.spec || {}"
-check    "  with no type hardcoded"      "$(grep -c 'g6\.xlarge\|L4\|16 GiB' app/renderer/app.js)" "0"
+check    "  with no type hardcoded"      "$(grep -c 'g6\.xlarge\|L4\|16 GiB' "$RENDERER_ALL")" "0"
 lacks    "no build time, no second rate line" "$js" "from the moment it starts"
 # ayis's dozen-odd steps, and the box's own, are placed in eight plain ones.
 contains "steps are the eight plain ones" "$js" "const BUILD_STEPS = ["
@@ -380,7 +382,7 @@ contains "the bar measures time, not steps" "$js" "const RUN_EXPECT = { init: 20
 contains "  and a run with no estimate does not pretend" "$js" "animate-pulse"
 contains "  nor does it reach full before the end" "$js" "Math.min(95"
 contains "the log follows only if asked" "$js" '$('"'"'b-follow'"'"').checked' 
-check    "  and it is still not a timer" "$(grep -c 'setInterval' app/renderer/app.js)" "0"
+check    "  and it is still not a timer" "$(grep -c 'setInterval' "$RENDERER_ALL")" "0"
 # A failed build used to report itself as the words "stopped (exit 1)" in a
 # small label, with the actual AWS error somewhere in a 200-line auto-scrolling
 # log that had already moved past it. ayis marks the headline as `fail`; the panel
@@ -409,7 +411,7 @@ contains "  and the step that failed holds it" "$js" "if (state === 'failed') bo
 # InsufficientInstanceCapacity", which read as the same sentence twice.
 contains "  the heading says it stopped"  "$js" "failed: 'Build failed'"
 check    "  with no second heading under it" \
-         "$(grep -c 'b-error-title' app/renderer/app.js app/renderer/index.html | awk -F: '{s+=$2} END{print s}')" "0"
+         "$(grep -c 'b-error-title' "$RENDERER_ALL" app/renderer/index.html | awk -F: '{s+=$2} END{print s}')" "0"
 contains "  fed by the lines ayis marked"    "$js" "if (event.kind === 'fail') { buildFailing = true;"
 contains "  and the report under them"     "$js" "else if (buildFailing && event.t === 'line')"
 contains "  an error event lands there too" "$js" "if (event.t === 'error') buildFail(event.text)"
@@ -458,7 +460,7 @@ lacks    "no picker on the Build screen"  "$html" 'id="b-type"'
 lacks    "  and no table either"          "$html" 'id="b-chooser"'
 contains "Build shows the machine card"  "$html" 'id="b-machine"'
 contains "  and so does Home, the same one" "$html" 'id="d-hero"'
-check    "  built by one recipe, buttons too" "$(grep -cE "^mountMachineCard\(\\$\('(d-hero|b-machine)'\), '[db]'\);$" app/renderer/app.js)" "2"
+check    "  built by one recipe, buttons too" "$(grep -cE "^mountMachineCard\(\\$\('(d-hero|b-machine)'\), '[db]'\);$" "$RENDERER_ALL")" "2"
 check    "  and no page keeps its own copy" "$(grep -cE 'id="[db]-(build|open|destroy)"' app/renderer/index.html)" "0"
 # ...as a dialog over the page, not a trip to the top of Settings.
 contains "  which offers the chooser here" "$js" "'Change machine').onclick = () => openMachines();"
@@ -482,7 +484,7 @@ contains "the summary is above Build"    "$js" 'box.append(body, unf, busy, row)
 contains "  and says why"                 "$js" "Delete the running machine before changing type"
 contains "  the unpinned zone is priced too" "$js" "usd_hour_spot_max"
 check    "  and still no machine is named here" \
-         "$(grep -cE 'g6\.|g6e\.|L40S|L4 ' app/renderer/app.js)" "0"
+         "$(grep -cE 'g6\.|g6e\.|L40S|L4 ' "$RENDERER_ALL")" "0"
 
 echo "5c. the library and cost screens, in the same language"
 # One list of games, a card each: its place, what it costs and when it goes.
@@ -495,20 +497,20 @@ contains "  kept for: one setting, applied at once" "$js" "['library', 'keep-for
 contains "  the Steam login is a card of its own" "$html" 'id="lib-login-box"'
 # A fallback that looks like an answer is worse than no answer: the app used to
 # print 209 GB of box disk and a rupee rate of 88 when ayis had told it neither.
-check    "no disk size is guessed"        "$(grep -c '|| 209' app/renderer/app.js)" "0"
-check    "  nor a starting value for one"  "$(grep -c 'selectable_gb: 209' app/renderer/app.js)" "0"
+check    "no disk size is guessed"        "$(grep -c '|| 209' "$RENDERER_ALL")" "0"
+check    "  nor a starting value for one"  "$(grep -c 'selectable_gb: 209' "$RENDERER_ALL")" "0"
 contains "  no disk is sized on a guess"  "$js" "unknown: true"
-check    "no exchange rate is guessed"    "$(grep -c 'inr_per_usd || 88' app/renderer/app.js)" "0"
+check    "no exchange rate is guessed"    "$(grep -c 'inr_per_usd || 88' "$RENDERER_ALL")" "0"
 contains "cost projects the month"       "$js" "m.projected_usd"
 contains "  against the budget you set, in rupees" "$js" "Number(setting('GAME_BUDGET_INR', NaN))"
 contains "  which emails, then blocks"     "$js" "Emails at 80%. Once spent, the machine switches off"
 # Rupees only: the Cost page was the last one showing dollars beside them.
 lacks    "  no dollar column"             "$html" "TOTAL ($)"
-check    "  no dollar helper left"        "$(grep -c 'const money = ' app/renderer/app.js)" "0"
+check    "  no dollar helper left"        "$(grep -c 'const money = ' "$RENDERER_ALL")" "0"
 contains "  what recurs, every month"     "$html" 'id="c-recurring-card"'
 lacks    "  and no guess at what the bill says beyond it" "$js" "unknown_usd_month"
 contains "  and the egress hours from your bitrate" "$js" "setting('GAME_BITRATE_KBPS', 20000)"
-check    "  reading the same registry"    "$(grep -c 'function setting(key, fallback)' app/renderer/app.js)" "1"
+check    "  reading the same registry"    "$(grep -c 'function setting(key, fallback)' "$RENDERER_ALL")" "1"
 
 echo "5d. a stream the app never started"
 # Closing the window does not end `ayis open`; reopening it must not start a
@@ -538,7 +540,7 @@ echo "5f. the app holds no prices"
 # screens were built, $0.025, $0.0912 and $0.1093 all found their way into the
 # renderer. Every one of them now arrives from ayis.
 check "no price literal in the renderer" \
-      "$(grep -vE '^\s*(//|\*)' app/renderer/app.js | grep -cE '[^0-9.](0\.[0-9]{2,})')" "0"
+      "$(grep -vE '^\s*(//|\*)' "$RENDERER_ALL" | grep -cE '[^0-9.](0\.[0-9]{2,})')" "0"
 # None, buttons included: Refresh on the Cost page takes the dashboard's
 # price, which comes from status, in rupees.
 check "  nor in the markup"              "$(grep -cE '\$0\.[0-9]+' app/renderer/index.html)" "0"
@@ -569,7 +571,7 @@ contains "spend comes from a fetch"      "$js" "function paintSpend(d)"
 # One place reads the bill: Spending's Refresh. Home's Exact cost goes there
 # and presses it, rather than being a second paid call of its own.
 check    "  which is the only paid button" \
-         "$(grep -c "runAyis(\['cost', '--json'\]\|v === 'cost' ? \[\[\['cost', '--json'\]" app/renderer/app.js)" "1"
+         "$(grep -c "runAyis(\['cost', '--json'\]\|v === 'cost' ? \[\[\['cost', '--json'\]" "$RENDERER_ALL")" "1"
 contains "  Exact cost opens Spending and refreshes it" "$js" "\$('d-cost').onclick = () => { goView('cost'); \$('refresh').click(); };"
 contains "  and it carries the price"    "$html" 'id="d-cost-price"'
 contains "activity is this window's own" "$js" "function note(text, tone)"
@@ -626,7 +628,7 @@ contains "  the editor keeps its fixed width"  "$js" "+ 'w-64';"
 contains "the event stream can be filtered" "$js" "function applyLogFilter(which)"
 contains "  and copied"                  "$html" 'id="log-copy"'
 contains "  and cleared"                 "$html" 'id="log-clear"'
-check    "  it keeps a bounded number"   "$(grep -c "log.children.length > 2000" app/renderer/app.js)" "1"
+check    "  it keeps a bounded number"   "$(grep -c "log.children.length > 2000" "$RENDERER_ALL")" "1"
 contains "the watchdog's own log is reachable" "$js" "runAyis(['watchdog', 'logs']"
 contains "  and reading it is free"      "$html" "Free to load"
 # Which card a setting belongs on is ayis's answer now; this file keeps the
@@ -744,7 +746,7 @@ check    "the deb can be built"          "$(node -e 'const b=require("./app/pack
 
 echo "6. the actions that spend money ask first"
 # window.confirm draws a native alert that belongs to no design.
-check    "no native alert boxes"         "$(grep -cE '(^|[^a-zA-Z.])confirm\(' app/renderer/app.js)" "0"
+check    "no native alert boxes"         "$(grep -cE '(^|[^a-zA-Z.])confirm\(' "$RENDERER_ALL")" "0"
 contains "  the app asks in its own dialog" "$html" 'id="confirm-title"'
 contains "  and says only what it costs" "$js" "from now until you stop or delete it."
 lacks    "  not how games used to be chosen" "$js" 'No games are put on it.'
@@ -754,7 +756,7 @@ contains "  and passes the chosen games" "$js" "GAME_APPS: apps"
 contains "a delete confirms"             "$js" "Delete the machine?"
 contains "only GAME_APPS may cross"      "$(cat app/main/index.js)" "['GAME_APPS']"
 contains "ayis's contract names what may cross" "$(cat internal/contract/contract.go)" 'var Env = []string{"GAME_APPS", "GAME_EXTRA_DISK_GB"}'
-check    "no secret is rendered"         "$(grep -cE 'TAILSCALE_AUTH_KEY|SUNSHINE_PASS|GAME_NTFY_URL *=' app/renderer/app.js)" "0"
+check    "no secret is rendered"         "$(grep -cE 'TAILSCALE_AUTH_KEY|SUNSHINE_PASS|GAME_NTFY_URL *=' "$RENDERER_ALL")" "0"
 # Settings are read from the registry and written back through it: the app
 # never touches .env, and a secret can be replaced but not read.
 contains "settings read the registry"    "$js" "settings:  [[['config', '--json']"

@@ -9,6 +9,8 @@
 # ayis had said, so a request that HAD been filed read as homework.
 set -uo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck source=tests/lib/renderer.sh
+source tests/lib/renderer.sh
 T=$(mktemp -d); pass=0; fail=0
 trap 'rm -rf "$T"' EXIT
 export HOME="$T"
@@ -60,8 +62,8 @@ contains "the rule was found"         "$sched" "checked"
 lacks    "nothing is misclassified"   "$sched" "WRONG"
 # One list, published by the thing that takes the locks.
 contains "ayis publishes it"            "$(./ayis --contract)" '"runs_alone"'
-lacks    "  and the renderer keeps none" "$(cat app/renderer/app.js)" "const WRITES = new Set("
-contains "  it is told instead"       "$(cat app/renderer/app.js)" "write: !!res.write"
+lacks    "  and the renderer keeps none" "$(cat "$RENDERER_ALL")" "const WRITES = new Set("
+contains "  it is told instead"       "$(cat "$RENDERER_ALL")" "write: !!res.write"
 
 BROWSER=""
 for b in chromium chromium-browser google-chrome-stable google-chrome; do
@@ -70,7 +72,7 @@ done
 [[ -n $BROWSER ]] || { echo "  (no chromium - skipped)"; echo "quota-dom: $pass passed, $fail failed"; exit 0; }
 
 mkdir -p "$T/r"
-cp app/renderer/index.html app/renderer/app.js "$T/r/"
+cp -r app/renderer/index.html app/renderer/js "$T/r/"
 cp app/renderer/*.css "$T/r/"
 cp -r app/renderer/fonts "$T/r/" 2>/dev/null || true
 
@@ -131,8 +133,8 @@ import pathlib, sys
 p = pathlib.Path(sys.argv[1]) / "index.html"
 t = p.read_text()
 if 'stub.js' not in t:
-    t = t.replace('<script src="app.js"',
-                  '<script src="stub.js"></script>\n<script src="answers.js"></script>\n<script src="app.js"', 1)
+    t = t.replace('<script src="js/core.js"',
+                  '<script src="stub.js"></script>\n<script src="answers.js"></script>\n<script src="js/core.js"', 1)
     t = t.replace('</body>', '<script src="probe.js"></script>\n</body>', 1)
     p.write_text(t)
 PY

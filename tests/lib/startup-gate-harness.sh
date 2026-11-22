@@ -34,7 +34,7 @@ done
 ALONE=$(./ayis --contract | python3 -I -c 'import json,sys;print(json.dumps(json.load(sys.stdin)["runs_alone"]))')
 
 mkdir -p "$T/r"
-cp app/renderer/index.html app/renderer/app.js "$T/r/"
+cp -r app/renderer/index.html app/renderer/js "$T/r/"
 cp app/renderer/*.css "$T/r/"
 cp -r app/renderer/fonts "$T/r/" 2>/dev/null || true
 
@@ -215,8 +215,8 @@ import pathlib, sys
 p = pathlib.Path(sys.argv[1]) / "index.html"
 t = p.read_text()
 if 'stub.js' not in t:
-    t = t.replace('<script src="app.js"',
-                  '<script src="stub.js"></script>\n<script src="answers.js"></script>\n<script src="app.js"', 1)
+    t = t.replace('<script src="js/core.js"',
+                  '<script src="stub.js"></script>\n<script src="answers.js"></script>\n<script src="js/core.js"', 1)
     t = t.replace('</body>', '<script src="probe.js"></script>\n</body>', 1)
     p.write_text(t)
 PY

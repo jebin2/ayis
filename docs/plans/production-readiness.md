@@ -213,6 +213,23 @@ over 1,500 lines; coverage ≥ 70%.
 **Exit:** `app.js` gone; every page has DOM tests that pass locally and in CI; the packaged
 AppImage passes `tests/app-packaged.sh`.
 
+**Part 1 done (branch `p3-app-modules`):** `app.js` is gone - fourteen scripts of 199 to 1,507
+lines, one per page or concern, loaded in order. Before cutting, every statement that runs at
+load was traced through the functions it calls: inside one script a function is usable before
+its line, across scripts it is not, and only one stretch (Play, stop and keep, 1,266 lines) had to
+stay whole. The pieces join back to the old file exactly, less the dead code below.
+
+- `tests/renderer-names.sh` checks the scripts together: a name declared twice, or never used.
+  It found **`cell` defined twice** - Home's copy had been silently replaced by Build's since it
+  was written - and **eight unused names**, among them `extraDiskGb`, whose test claimed "the app and
+  ayis size the disk alike" while the app sized the disk elsewhere. All removed.
+- ESLint reads each script's top-level names, so a typo is still an undefined name; its errors are 0.
+- The suites read the renderer through `tests/lib/renderer.sh`, in `index.html`'s order.
+
+**Still to do in P3:** ES modules with explicit imports (the split makes each one a smaller
+change); behaviour tests in place of the source greps; and the DOM suites running locally - they
+still need Chromium (decision 4), and an Electron smoke test hung here for want of a display.
+
 ### P4 - The watchdog as a package (M)
 
 - Turn `lambda/cloud_watchdog.py` into `lambda/ayis_watchdog/` with modules `limits`, `idle`,

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The machine chooser, actually rendered.
 #
-# Every other renderer test in here reads app.js as text. That is why three UI
+# Every other renderer test in here reads the renderer as text. That is why three UI
 # bugs shipped: a picker that was below the fold at narrow widths, a packaged
 # app that could not spawn ayis, and - found by writing this file - a paint that
 # threw and was silent because updateHeader() overwrote the error in the same
@@ -41,7 +41,7 @@ fi
 # injects scripts into app/renderer can leave them behind, and a stub shipped
 # inside the app would be far worse than no test.
 mkdir -p "$T/r"
-cp app/renderer/index.html app/renderer/app.js app/renderer/tailwind.css "$T/r/"
+cp -r app/renderer/index.html app/renderer/js app/renderer/tailwind.css "$T/r/"
 
 # Recorded answers. Written here rather than captured from AWS so the suite is
 # offline and deterministic: ap-south-1 has capacity for g4dn but NO spot quota,
@@ -293,8 +293,6 @@ cat > "$T/r/probe.js" <<'PROBE'
   out.push('PAINTED | guards | ' + document.getElementById('g-nets').children.length);
   // The Build page has no game picker any more: games are chosen at Play, and
   // that popup's sizing is tested in startup-gate-build (7e4).
-  out.push('EXTRADISK | ' + [extraDiskGb(121, 20, 232), extraDiskGb(212, 20, 232), extraDiskGb(213, 20, 232), extraDiskGb(140, 20, 115),
-                              extraDiskGb(170, 20, 115), extraDiskGb(50, 20, 0), extraDiskGb(0, 20, 115), extraDiskGb(140, 20, null)].join(','));
   if (window.__errs.length) out.push('ERRORS: ' + window.__errs.join(' | '));
   const card = f => (document.querySelector('#b-machine-card [data-f=' + f + ']') || {}).textContent || '';
   out.push('BPICK | ' + card('what'));
@@ -363,7 +361,7 @@ python3 - "$T/r" <<'PY'
 import pathlib, sys
 p = pathlib.Path(sys.argv[1]) / "index.html"
 t = p.read_text()
-t = t.replace('<script src="app.js"', '<script src="stub.js"></script>\n<script src="app.js"', 1)
+t = t.replace('<script src="js/core.js"', '<script src="stub.js"></script>\n<script src="js/core.js"', 1)
 t = t.replace('</body>', '<script src="probe.js"></script>\n</body>', 1)
 p.write_text(t)
 PY
@@ -406,7 +404,6 @@ contains "paintGuards drew a net"           "$OUT" "PAINTED | guards | 1"
 check    "number headings are right-aligned, over their numbers" "$(grep '^HEADALIGN' <<<"$OUT")" "HEADALIGN | right,right"
 contains "the machine card says how much room it has" "$(grep '^BPICK' <<<"$OUT")" " GB"
 # The same numbers as provision's ExtraDiskGB test: one rule, two places.
-contains "the app and ayis size the disk alike" "$OUT" "EXTRADISK | 0,0,240,160,190,70,0,0"
 
 echo "2. the table lives on Settings, and only there"
 contains "the Settings screen has it"  "$OUT" "TABLE s-chooser"
