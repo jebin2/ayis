@@ -24,9 +24,11 @@
     "appId": "dev.ayis.desktop",
     "productName": "Ayis",
     "asar": true,
+    "electronLanguages": ["en-US"],
     "files": [
       "main/**",
       "renderer/**",
+      "!renderer/src.css",
       "package.json"
     ],
     "directories": {

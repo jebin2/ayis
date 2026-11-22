@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -101,8 +102,29 @@ func (w *Watcher) nodeIP(ctx context.Context) string {
 	return strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0])
 }
 
-// Gather asks everything. Nothing stops at a failed read.
+// Gather asks everything. Nothing stops at a failed read. The machine, the
+// cloud watchdog and the budget are independent, so they are asked at once
+// (docs/performance.md: the watcher's rounds of AWS calls are a budget).
 func (w *Watcher) Gather(ctx context.Context) Facts {
+	var (
+		f      Facts
+		layer3 wd.State
+		budget Facts
+		wg     sync.WaitGroup
+	)
+	wg.Add(2)
+	go func() { defer wg.Done(); layer3 = w.Reader.Current(ctx) }()
+	go func() { defer wg.Done(); budget = w.budget(ctx) }()
+	f = w.box(ctx)
+	wg.Wait()
+	f.Layer3 = layer3
+	f.Archive = watchdog.ArchiveText(f.Layer3, w.ExpiryDays, w.Reader.Now())
+	f.Budget, f.BudgetKnown, f.Alerts = budget.Budget, budget.BudgetKnown, budget.Alerts
+	return f
+}
+
+// box is the machine and its on-host watchdog.
+func (w *Watcher) box(ctx context.Context) Facts {
 	var f Facts
 	f.State = "none"
 	var inst *ec2types.Instance
@@ -146,20 +168,29 @@ func (w *Watcher) Gather(ctx context.Context) Facts {
 			}
 		}
 	}
-	f.Layer3 = w.Reader.Current(ctx)
-	f.Archive = watchdog.ArchiveText(f.Layer3, w.ExpiryDays, w.Reader.Now())
-	// The budget.
+	return f
+}
+
+// budget is the AWS budget and its alerts; the two budget reads go together.
+func (w *Watcher) budget(ctx context.Context) Facts {
+	var f Facts
 	if id, err := w.STS.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}); err == nil {
 		acct := aws.ToString(id.Account)
 		name := w.Host + "-monthly"
-		if b, err := w.Budgets.DescribeBudget(ctx, &budgets.DescribeBudgetInput{AccountId: aws.String(acct), BudgetName: aws.String(name)}); err == nil &&
-			b.Budget != nil && b.Budget.BudgetLimit != nil {
-			f.Budget, f.BudgetKnown = aws.ToString(b.Budget.BudgetLimit.Amount), true
-		}
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if b, err := w.Budgets.DescribeBudget(ctx, &budgets.DescribeBudgetInput{AccountId: aws.String(acct), BudgetName: aws.String(name)}); err == nil &&
+				b.Budget != nil && b.Budget.BudgetLimit != nil {
+				f.Budget, f.BudgetKnown = aws.ToString(b.Budget.BudgetLimit.Amount), true
+			}
+		}()
 		if n, err := w.Budgets.DescribeNotificationsForBudget(ctx, &budgets.DescribeNotificationsForBudgetInput{
 			AccountId: aws.String(acct), BudgetName: aws.String(name)}); err == nil {
 			f.Alerts = len(n.Notifications)
 		}
+		wg.Wait()
 	}
 	return f
 }

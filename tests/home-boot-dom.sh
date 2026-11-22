@@ -107,6 +107,11 @@ cat > "$T/r/probe.js" <<'PROBE'
   const buttons = root => (root ? [...root.querySelectorAll('button')].map(b => b.textContent.trim()).join(', ') : '(missing)');
   try {
     // The first frame: before any read has answered.
+    // How soon the window shows something (docs/performance.md): the browser's own
+    // first paint, on the headless browser's virtual clock - steady run to run,
+    // so a budget on it catches a start-up that grew heavy.
+    const paint = performance.getEntriesByType('paint').find(e => e.name === 'first-contentful-paint');
+    out.push('SPEED | ' + Math.round(paint ? paint.startTime : -1));
     out.push('FIRST | welcome=' + shown('d-welcome') + ' machines=' + shown('d-machines')
              + ' cards=' + document.querySelectorAll('#d-hosts [data-host]').length);
     out.push('FIRST CARD | ' + (card('homebox') || {}).dataset?.state + ' ' + txt(card('homebox')));
@@ -166,6 +171,11 @@ if [[ $OUT == "PROBE DID NOT RUN" || -z $OUT ]]; then
   echo "  FAIL the page did not render at all"; echo; echo "home-boot-dom: $pass passed, 1 failed"; exit 1
 fi
 row() { grep "^$1 |" <<<"$OUT" | head -1; }
+
+echo "0. the window paints quickly (docs/performance.md: measured 52-56 ms, budget 300)"
+paint=$(row SPEED | awk '{print $3}')
+if [[ $paint =~ ^[0-9]+$ ]] && (( paint >= 0 && paint <= 300 )); then echo "  ok   first paint in ${paint} ms"; pass=$((pass+1))
+else echo "  FAIL first paint took '${paint}' ms - the budget is 300"; fail=$((fail+1)); fi
 
 echo "1. the first frame is the final layout"
 check    "remembered machines are there at once, no welcome" "$(row 'FIRST')" "FIRST | welcome=hidden machines=shown cards=2"

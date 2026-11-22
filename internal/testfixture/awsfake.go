@@ -82,6 +82,10 @@ type Day struct {
 
 // Scenario is an account.
 type Scenario struct {
+	// Latency is how long every call takes, as AWS's do - for measuring how many
+	// rounds of calls a command makes one after another (docs/performance.md).
+	Latency time.Duration
+
 	Account    string
 	Instances  []Instance
 	Volumes    []Volume
@@ -153,6 +157,9 @@ func (e apiError) ErrorMessage() string          { return e.msg }
 func (e apiError) ErrorFault() smithy.ErrorFault { return smithy.FaultClient }
 
 func (s *Scenario) hit(name string) error {
+	if s.Latency > 0 {
+		time.Sleep(s.Latency)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.Calls == nil {

@@ -659,7 +659,7 @@ echo "5i. packaging keeps the scripts outside the package"
 # An ayis bundled into the .asar would be a second, stale engine. The app finds
 # the repo instead - and still works when it is somewhere else.
 check "the build config exists"          "$(node -e 'console.log(require("./app/package.json").build ? 1 : 0)')" "1"
-check "  and ships only the app"         "$(node -e 'console.log(require("./app/package.json").build.files.join(","))')" "main/**,renderer/**,package.json"
+check "  and ships only the app"         "$(node -e 'console.log(require("./app/package.json").build.files.join(","))')" "main/**,renderer/**,!renderer/src.css,package.json"
 # findRepo lives in main/repo.js, not in here: inside index.js it could not be
 # required without starting Electron, and the bug that shipped - a DIRECTORY
 # named ayis winning over the script - went uncaught for exactly that reason.
@@ -790,5 +790,16 @@ contains "  the disk never goes below what the games need" "$js" "diskGb = have 
 contains "Delete machine runs in the same window as Stop" "$js" "if (statusNow && statusNow.box && statusNow.box.state === 'running') return keepFlow('delete', untick);"
 # A stopped machine's hourly price is what it costs when it runs, and says so.
 contains "a stopped machine's price says when running" "$js" "box.state === 'stopped' ? ' when running' : ''"
+
+echo "7. what the package weighs (docs/performance.md)"
+# The renderer as it ships: every file the package takes from renderer/, which
+# is everything but the stylesheet's source. Measured 844,215 bytes on 2026-11-22.
+shipped=$(cd app && find renderer -type f ! -name src.css -printf '%s\n' | awk '{n+=$1} END {print n}')
+if (( shipped <= 1000000 )); then echo "  ok   the renderer ships ${shipped} bytes (budget 1,000,000)"; pass=$((pass+1))
+else echo "  FAIL the renderer ships ${shipped} bytes - the budget is 1,000,000"; fail=$((fail+1)); fi
+pkg=$(cat app/package.json)
+contains "only English for Electron's own words (44 MB of other languages)" "$pkg" '"electronLanguages": ["en-US"]'
+contains "the stylesheet's source stays out"     "$pkg" '"!renderer/src.css"'
+contains "the release checks the AppImage's size" "$(cat .github/workflows/desktop-release.yml)" "AppImage over its budget"
 
 echo; echo "passed $pass, failed $fail"; [[ $fail -eq 0 ]]

@@ -94,6 +94,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run dist -- --linux --publish never
 
+      # docs/performance.md: 123.7 MB before the unused Electron languages were
+      # dropped, 112.2 MB after. Grown past 120 MB is a change worth a look.
+      - name: AppImage size budget
+        working-directory: ./app/dist
+        run: |
+          size=$(stat -c %s *.AppImage)
+          echo "AppImage: $size bytes (budget 120000000)"
+          if [ "$size" -gt 120000000 ]; then echo "AppImage over its budget"; exit 1; fi
+        shell: bash
+
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v7
         with:
