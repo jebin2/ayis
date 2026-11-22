@@ -184,3 +184,20 @@ func TestLogLinesCarryNoNewline(t *testing.T) {
 		t.Errorf("%q", out)
 	}
 }
+
+func TestALateHeartbeatIsAFailureLine(t *testing.T) {
+	at := time.Date(2026, 11, 22, 12, 0, 0, 0, time.UTC)
+	st := wd.State{Rule: "ENABLED", LastMS: at.Add(-time.Minute).UnixMilli(), LastMsg: "nothing to do",
+		Heartbeat: wd.Heartbeat{Known: true, Found: true, At: at.Add(-40 * time.Minute)}}
+	rows := RowsFor(st, "ayis", at)
+	last := rows[len(rows)-1]
+	if last[0] != "fail" || !strings.Contains(last[1], "no check has finished cleanly for 40 min") {
+		t.Errorf("rows %v", rows)
+	}
+	st.Heartbeat.At = at.Add(-4 * time.Minute)
+	for _, r := range RowsFor(st, "ayis", at) {
+		if r[0] == "fail" {
+			t.Errorf("on time, yet %v", r)
+		}
+	}
+}

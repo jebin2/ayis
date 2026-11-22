@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	awspricing "github.com/aws/aws-sdk-go-v2/service/pricing"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 
 	ayis "github.com/jebin2/ayis"
 	"github.com/jebin2/ayis/internal/awscfg"
@@ -44,7 +45,7 @@ func NewReader(ctx context.Context, env *config.Env) (*wd.Reader, error) {
 	host := env.Host()
 	return &wd.Reader{
 		Lambda: lambda.NewFromConfig(cfg), Events: eventbridge.NewFromConfig(cfg), IAM: iam.NewFromConfig(cfg),
-		Logs: cloudwatchlogs.NewFromConfig(cfg), Now: time.Now, Host: host, Region: region, Source: src,
+		Logs: cloudwatchlogs.NewFromConfig(cfg), SSM: ssm.NewFromConfig(cfg), Now: time.Now, Host: host, Region: region, Source: src,
 		Settings: func(account string) wd.Settings { return SettingsFor(env, rates, account) },
 	}, nil
 }

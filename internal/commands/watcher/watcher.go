@@ -203,6 +203,16 @@ func (w *Watcher) JSON(f Facts, now time.Time) ([]byte, error) {
 	if f.Layer3.LastMS > 0 {
 		lastMsg, lastAge = f.Layer3.LastMsg, int64(now.Sub(time.UnixMilli(f.Layer3.LastMS)).Seconds())
 	}
+	// The dead-man signal: the last run that finished without an error.
+	var okAge, late any
+	if hb := f.Layer3.Heartbeat; hb.Found {
+		okAge, late = int64(now.Sub(hb.At).Seconds()), hb.Late(now)
+	} else if hb.Known && rule == "ENABLED" {
+		late = false
+	}
+	if late == true {
+		l3State = "late"
+	}
 	var expected, value any
 	if f.Shutdown != "" {
 		value = f.Shutdown
@@ -230,7 +240,8 @@ func (w *Watcher) JSON(f Facts, now time.Time) ([]byte, error) {
 				"reaction": fmt.Sprintf("%d min idle; forced after %d min stuck", w.IdleMin, w.StuckMin),
 				"idle_min": w.IdleMin, "stuck_min": w.StuckMin, "every_min": wd.EveryMin,
 				"armed": rule == "ENABLED", "state": l3State, "note": l3Note,
-				"last_decision": lastMsg, "last_decision_age_s": lastAge},
+				"last_decision": lastMsg, "last_decision_age_s": lastAge,
+				"last_ok_age_s": okAge, "late": late},
 		},
 		"shutdown_action": map[string]any{"value": value, "expected": expected, "ok": f.Shutdown != "" && f.Shutdown == f.Want},
 		"budget":          map[string]any{"usd": budget, "alerts": f.Alerts},

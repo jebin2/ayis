@@ -26,6 +26,8 @@ function netWords(g, d) {
 }
 function netState(g, gone) {
   if (g.layer === 1) return ['Always on', 'pill-ok'];
+  // On, but no check has finished for 15 minutes: the dead-man signal.
+  if (g.late === true) return ['Not running', 'pill-bad'];
   if (g.armed === true) return ['On', 'pill-ok'];
   // Every build installs it before launching: with no machine, not yet.
   if (g.layer === 3 && g.armed === false && gone) return ['Turns on when you build', ''];
@@ -57,6 +59,8 @@ function paintGuards(d) {
   // launches; with no machine, their absence is not something wrong.
   const warn = [];
   if (cloud.armed === false && !gone) warn.push(`AWS auto-stop is ${cloud.state || 'off'}.`);
+  // The dead-man signal: armed, but no run has finished cleanly for 15 minutes.
+  if (cloud.late === true) warn.push(`AWS auto-stop has not finished a check for ${ago(cloud.last_ok_age_s).replace(/ ago$/, '')} - it may not be running.`);
   if (running && by(2).armed === false) warn.push("The machine's own check is off - only AWS will stop it.");
   const sd = d.shutdown_action || {};
   if (sd.expected && !sd.ok) warn.push(`Shutdown behavior is ${sd.value === 'terminate' ? 'delete' : 'stop'}; expected ${sd.expected === 'terminate' ? 'delete' : 'stop'}.`);

@@ -201,3 +201,24 @@ func TestHostIdleLimitIsReadFromItsOwnScript(t *testing.T) {
 		t.Error("unreadable is zero")
 	}
 }
+
+// The dead-man signal reaches the app: a heartbeat 25 minutes old is late, and
+// the cloud watchdog's state says so; 5 minutes old is on time.
+func TestALateWatchdogIsNotArmedInWords(t *testing.T) {
+	w := build(scenario("", ""), &fx.Runner{}, "")
+	f := w.Gather(context.Background())
+	f.Layer3.Heartbeat = wd.Heartbeat{Known: true, Found: true, At: now.Add(-25 * time.Minute)}
+	g := guard(jq(t, w, f), 2)
+	if g["late"] != true || g["state"] != "late" || g["last_ok_age_s"] != 1500.0 {
+		t.Errorf("late: %v", g)
+	}
+	f.Layer3.Heartbeat.At = now.Add(-5 * time.Minute)
+	g = guard(jq(t, w, f), 2)
+	if g["late"] != false || g["state"] != "armed" {
+		t.Errorf("on time: %v", g)
+	}
+	f.Layer3.Heartbeat = wd.Heartbeat{}
+	if g = guard(jq(t, w, f), 2); g["late"] != nil {
+		t.Errorf("unknown is neither late nor on time: %v", g)
+	}
+}

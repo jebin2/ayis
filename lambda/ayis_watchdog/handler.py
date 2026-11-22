@@ -5,7 +5,8 @@ from typing import Any
 
 from . import settings
 from .archive import expire_archive
-from .common import say
+from .aws import mark_put
+from .common import iso, say
 from .events import state_changed
 from .idle import run
 from .limits import limits
@@ -70,4 +71,18 @@ def run_all(ec2: Any, cw: Any, s3: Any, ssm: Any, trail: Any, now: datetime, dry
                    "The check that switches off idle game PCs failed. Open the ayis app to see why.",
                    "urgent", "rotating_light")
         raise failure
+    if not dry:
+        heartbeat(ssm, now)
     return result
+
+
+def heartbeat(ssm: Any, now: datetime) -> None:
+    """The dead-man signal: when the last run that finished without an error
+    was. The app and `ayis watcher` warn when it is older than 15 minutes - a
+    watchdog that stopped running, or fails every time, looks like one that is
+    quiet otherwise. A write that fails is said and ignored: missing it is the
+    warning."""
+    try:
+        mark_put(ssm, "watchdog/last-ok", iso(now))
+    except Exception as exc:
+        say("could not record this good run (the app will say the watchdog is late): %s" % exc)

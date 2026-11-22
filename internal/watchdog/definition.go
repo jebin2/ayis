@@ -149,6 +149,10 @@ func (s Settings) Policy(region string) map[string]any {
 		map[string]any{"Sid": "OwnLogs", "Effect": "Allow", "Action": []string{"logs:CreateLogStream", "logs:PutLogEvents"},
 			"Resource": fmt.Sprintf("arn:aws:logs:%s:%s:log-group:%s:*", region, s.Account, LogGroup(s.Host))},
 	}
+	// The dead-man signal: when its last good run was (heartbeat.go). That one
+	// parameter only.
+	stmts = append(stmts, map[string]any{"Sid": "Heartbeat", "Effect": "Allow", "Action": "ssm:PutParameter",
+		"Resource": fmt.Sprintf("arn:aws:ssm:*:%s:parameter%s", s.Account, HeartbeatName(s.Host))})
 	// The one object it reads to know the games are saved: ayis-library's marker.
 	if s.Bucket != "" {
 		stmts = append(stmts, map[string]any{"Sid": "ReadTheSavedMarker", "Effect": "Allow", "Action": "s3:GetObject",

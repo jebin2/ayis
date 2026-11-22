@@ -39,6 +39,7 @@ type Reader struct {
 	Events EventsAPI
 	IAM    IAMAPI
 	Logs   LogsAPI
+	SSM    SSMReadAPI // the heartbeat; nil reads nothing
 	Now    func() time.Time
 
 	Host, Region string
@@ -59,6 +60,7 @@ type State struct {
 	ArchiveMS  int64
 	ArchiveMsg string
 	Recent     []Event // up to the last 8 decisions of the past hour
+	Heartbeat  Heartbeat
 }
 
 // Event is one logged decision.
@@ -118,6 +120,9 @@ func (r *Reader) Current(ctx context.Context) State {
 		}
 	})
 	run(func() { events, logErr = r.events(ctx, "ayis-watchdog:", time.Hour, now) })
+	if r.SSM != nil {
+		run(func() { st.Heartbeat = ReadHeartbeat(ctx, r.SSM, r.Host) })
+	}
 	var arch []Event
 	run(func() { arch, _ = r.events(ctx, "ayis-watchdog: archive", 2*time.Hour, now) })
 	zipBytes, sha := Zip(r.Source)

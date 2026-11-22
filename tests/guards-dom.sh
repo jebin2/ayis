@@ -155,6 +155,10 @@ cat > "$T/r/probe.js" <<'PROBE'
     paintGuards(W('running', { armed: true, state: 'armed' }, { armed: true, state: 'armed' },
                   { shutdown_action: { value: 'terminate', expected: 'terminate', ok: true } }));
     read('GOOD');
+    // Armed, but no check has finished cleanly for 25 minutes: the dead-man signal.
+    paintGuards(W('running', { armed: true, state: 'armed' }, { armed: true, state: 'late', late: true, last_ok_age_s: 1500 },
+                  { shutdown_action: { value: 'terminate', expected: 'terminate', ok: true } }));
+    read('LATE');
     // Fresh AWS, nothing built: every build sets both up before it launches.
     paintGuards(W('none', { armed: null, state: 'no box' }, { armed: false, state: 'not installed' },
                   { budget: { usd: null, alerts: 0 } }));
@@ -295,6 +299,11 @@ echo "5. a running machine with everything on"
 contains "all of them"                   "$(row 'GOOD HEAD')" "Machine running · all 3 safeguards on"
 contains "  no warnings"                 "$(row 'GOOD WARN')" "hidden"
 contains "a spot machine is deleted"     "$(row 'GOOD NET2')" "Then deleted."
+
+echo "5b. a watchdog that has not finished a check for 15 minutes says so"
+contains "in red, on top"                "$(row 'LATE WARN')" "AWS auto-stop has not finished a check for 25m - it may not be running."
+contains "  and its card is not On"      "$(row 'LATE NET3')" "Not running"
+lacks    "  not On"                      "$(row 'LATE NET3')" " On"
 
 echo "6. nothing threw"
 check "no painter threw"                 "$(grep -c '^THREW' <<<"$OUT")" "0"

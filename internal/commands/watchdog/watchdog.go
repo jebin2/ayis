@@ -84,5 +84,9 @@ func RowsFor(st wd.State, host string, now time.Time) [][2]string {
 	case rule == "ENABLED":
 		lines = append(lines, [2]string{"warn", fmt.Sprintf("  ^ nothing logged in the last hour, but it runs every %d min", wd.EveryMin)})
 	}
+	// The dead-man signal: a run that logged is not a run that worked.
+	if hb := st.Heartbeat; hb.Late(now) {
+		lines = append(lines, [2]string{"fail", fmt.Sprintf("  ^ no check has finished cleanly for %s - it is not protecting you", wd.Age(hb.At.UnixMilli(), now))})
+	}
 	return lines
 }
