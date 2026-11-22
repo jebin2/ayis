@@ -9,4 +9,6 @@ description = "fake credentials in tests"
 regexes = [
   '''tskey-api-abc123''',
   '''AKIA(NEWKEYNEWKEY5678|EXAMPLEEXAMPLE00|BADBADBADBAD9999|GOODGOODGOOD1234|IOSFODNN7EXAMPLE)''',
+  # A variable name in the old Bash rates (the S3 price per GB-month), not a secret.
+  '''CG_S3_USD_GB_MONTH''',
 ]
