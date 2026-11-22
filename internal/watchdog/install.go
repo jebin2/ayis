@@ -35,6 +35,9 @@ type (
 		AddPermission(context.Context, *lambda.AddPermissionInput, ...func(*lambda.Options)) (*lambda.AddPermissionOutput, error)
 		RemovePermission(context.Context, *lambda.RemovePermissionInput, ...func(*lambda.Options)) (*lambda.RemovePermissionOutput, error)
 		Invoke(context.Context, *lambda.InvokeInput, ...func(*lambda.Options)) (*lambda.InvokeOutput, error)
+		PublishVersion(context.Context, *lambda.PublishVersionInput, ...func(*lambda.Options)) (*lambda.PublishVersionOutput, error)
+		ListVersionsByFunction(context.Context, *lambda.ListVersionsByFunctionInput, ...func(*lambda.Options)) (*lambda.ListVersionsByFunctionOutput, error)
+		GetFunction(context.Context, *lambda.GetFunctionInput, ...func(*lambda.Options)) (*lambda.GetFunctionOutput, error)
 	}
 	EventsWriter interface {
 		EventsAPI
@@ -83,6 +86,11 @@ type Installer struct {
 
 	Log   func(string)
 	Sleep func(time.Duration) // retry/poll waits; tests make them instant
+
+	// Force replaces a function that was rolled back (rollback.go).
+	Force bool
+	// Fetch downloads a kept version's code; nil uses HTTP.
+	Fetch func(ctx context.Context, url string) ([]byte, error)
 }
 
 func (i *Installer) log(s string) {
@@ -159,7 +167,19 @@ func (i *Installer) Install(ctx context.Context) error {
 	desc := "ayis layer 3 idle watchdog cfg=" + fp
 	env := &lambdatypes.Environment{Variables: i.Settings.EnvMap()}
 	cur, err := i.Lambda.GetFunctionConfiguration(ctx, &lambda.GetFunctionConfigurationInput{FunctionName: aws.String(name)})
+	var when string
+	var rolledBack bool
 	if err == nil {
+		when, rolledBack = IsRolledBack(aws.ToString(cur.Description))
+	}
+	switch {
+	case err == nil && rolledBack && !i.Force:
+		i.log("the function was rolled back (" + when + ") - left as it is; ayis watchdog install --force replaces it")
+	case err == nil:
+		changes := aws.ToString(cur.CodeSha256) != sha || !strings.Contains(aws.ToString(cur.Description), "cfg="+fp) || rolledBack
+		if changes {
+			i.snapshot(ctx, name)
+		}
 		if aws.ToString(cur.CodeSha256) != sha {
 			i.log("updating the function code")
 			if _, err := i.Lambda.UpdateFunctionCode(ctx, &lambda.UpdateFunctionCodeInput{FunctionName: aws.String(name), ZipFile: zip}); err != nil {
@@ -168,7 +188,7 @@ func (i *Installer) Install(ctx context.Context) error {
 			}
 			i.waitFunction(ctx)
 		}
-		if !strings.Contains(aws.ToString(cur.Description), "cfg="+fp) {
+		if !strings.Contains(aws.ToString(cur.Description), "cfg="+fp) || rolledBack {
 			i.log("updating the function settings")
 			if _, err := i.Lambda.UpdateFunctionConfiguration(ctx, &lambda.UpdateFunctionConfigurationInput{FunctionName: aws.String(name),
 				Runtime: lambdatypes.Runtime(RuntimeName), Handler: aws.String(Handler), Role: aws.String(roleARN),
@@ -178,7 +198,7 @@ func (i *Installer) Install(ctx context.Context) error {
 			}
 			i.waitFunction(ctx)
 		}
-	} else {
+	default:
 		i.log("creating the function " + name)
 		created := false
 		for n := 1; n <= 12; n++ {

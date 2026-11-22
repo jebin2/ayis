@@ -66,7 +66,7 @@ var Registry = []Command{
 	{Path: []string{"log"}, Aliases: [][]string{{"logs"}}, Summary: "the box's build, steam, watchdog, disk or sunshine log", Watch: true},
 	{Path: []string{"ssh"}, Summary: "a shell on the box, or one command"},
 	{Path: []string{"watcher"}, Aliases: [][]string{{"guards"}}, Summary: "every guard, and whether each is armed", JSON: true, Watch: true},
-	{Path: []string{"watchdog"}, Summary: "layer 3: the cloud watchdog (Lambda): status, check, logs, install, remove", Watch: true},
+	{Path: []string{"watchdog"}, Summary: "layer 3: the cloud watchdog (Lambda): status, check, logs, install [--force], rollback, remove", Watch: true},
 	{Path: []string{"status"}, Summary: "what exists, and whether every safeguard is on", JSON: true},
 	{Path: []string{"cost"}, Summary: "spend this month: billed so far, and an estimate for what is not billed yet", JSON: true},
 }

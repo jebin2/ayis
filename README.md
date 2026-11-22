@@ -83,4 +83,5 @@ The app runs `ayis`, a Go program built from this repository (`npm start` builds
 
 [Cost](docs/cost.md) · [AWS setup](docs/aws-account-setup.md) · [Streaming](docs/streaming.md) ·
 [Troubleshooting](docs/troubleshooting.md) · [Architecture](docs/architecture.md) ·
-[All commands](docs/commands.md)
+[All commands](docs/commands.md) · [Runbooks](docs/runbooks/README.md) ·
+[Performance](docs/performance.md) · [Security](docs/security/threat-model.md)

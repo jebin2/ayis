@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"sync"
@@ -37,6 +38,9 @@ type cloud struct {
 	failOn      map[string]error
 	createFails int // CreateFunction fails this many times with InvalidParameterValue first
 	invoke      *lambda.InvokeOutput
+	code        []byte    // what $LATEST runs
+	versions    []version // published, oldest first
+	nextVersion int
 	account     string
 	region      string
 	others      map[string]bool // other regions that have the function
@@ -180,7 +184,8 @@ func (c *cloud) CreateFunction(_ context.Context, in *lambda.CreateFunctionInput
 		return nil, errors.New("InvalidParameterValueException: The role defined for the function cannot be assumed by Lambda")
 	}
 	c.fn = &lambda.GetFunctionConfigurationOutput{CodeSha256: aws.String(shaOf(in.Code.ZipFile)), State: lambdatypes.StateActive, LastUpdateStatus: lambdatypes.LastUpdateStatusSuccessful,
-		Role: in.Role, Description: in.Description, Runtime: in.Runtime}
+		Role: in.Role, Description: in.Description, Runtime: in.Runtime, Handler: in.Handler, Environment: &lambdatypes.EnvironmentResponse{Variables: in.Environment.Variables}}
+	c.code = in.Code.ZipFile
 	return &lambda.CreateFunctionOutput{}, nil
 }
 func (c *cloud) UpdateFunctionCode(_ context.Context, in *lambda.UpdateFunctionCodeInput, _ ...func(*lambda.Options)) (*lambda.UpdateFunctionCodeOutput, error) {
@@ -188,6 +193,7 @@ func (c *cloud) UpdateFunctionCode(_ context.Context, in *lambda.UpdateFunctionC
 		return nil, err
 	}
 	c.fn.CodeSha256 = aws.String(shaOf(in.ZipFile))
+	c.code = in.ZipFile
 	return &lambda.UpdateFunctionCodeOutput{}, nil
 }
 func shaOf(zip []byte) string {
@@ -200,11 +206,27 @@ func (c *cloud) UpdateFunctionConfiguration(_ context.Context, in *lambda.Update
 		return nil, err
 	}
 	c.fn.Description, c.fn.Role = in.Description, in.Role
+	if in.Handler != nil {
+		c.fn.Handler = in.Handler
+	}
+	if in.Environment != nil {
+		c.fn.Environment = &lambdatypes.EnvironmentResponse{Variables: in.Environment.Variables}
+	}
 	return &lambda.UpdateFunctionConfigurationOutput{}, nil
 }
-func (c *cloud) DeleteFunction(context.Context, *lambda.DeleteFunctionInput, ...func(*lambda.Options)) (*lambda.DeleteFunctionOutput, error) {
+func (c *cloud) DeleteFunction(_ context.Context, in *lambda.DeleteFunctionInput, _ ...func(*lambda.Options)) (*lambda.DeleteFunctionOutput, error) {
 	if err := c.hit("DeleteFunction"); err != nil {
 		return nil, err
+	}
+	if q := aws.ToString(in.Qualifier); q != "" {
+		var keep []version
+		for _, v := range c.versions {
+			if v.n != q {
+				keep = append(keep, v)
+			}
+		}
+		c.versions = keep
+		return &lambda.DeleteFunctionOutput{}, nil
 	}
 	if c.fn == nil {
 		return nil, errors.New("ResourceNotFoundException")
@@ -534,4 +556,51 @@ func TestTheRoleIsKeptWhenAnotherRegionCannotBeAsked(t *testing.T) {
 	if _, ok := c.roles["ayis-cloud-watchdog"]; !ok {
 		t.Errorf("a region list that failed must not delete the role: %v", *said)
 	}
+}
+
+// A published version: what $LATEST was when it was published.
+type version struct {
+	n    string
+	cfg  lambda.GetFunctionConfigurationOutput
+	code []byte
+}
+
+func (c *cloud) PublishVersion(_ context.Context, in *lambda.PublishVersionInput, _ ...func(*lambda.Options)) (*lambda.PublishVersionOutput, error) {
+	if err := c.hit("PublishVersion"); err != nil {
+		return nil, err
+	}
+	c.nextVersion++
+	n := fmt.Sprint(c.nextVersion)
+	c.versions = append(c.versions, version{n: n, cfg: *c.fn, code: c.code})
+	return &lambda.PublishVersionOutput{Version: aws.String(n)}, nil
+}
+
+func (c *cloud) ListVersionsByFunction(context.Context, *lambda.ListVersionsByFunctionInput, ...func(*lambda.Options)) (*lambda.ListVersionsByFunctionOutput, error) {
+	o := &lambda.ListVersionsByFunctionOutput{Versions: []lambdatypes.FunctionConfiguration{{Version: aws.String("$LATEST")}}}
+	for _, v := range c.versions {
+		o.Versions = append(o.Versions, lambdatypes.FunctionConfiguration{Version: aws.String(v.n)})
+	}
+	return o, nil
+}
+
+func (c *cloud) GetFunction(_ context.Context, in *lambda.GetFunctionInput, _ ...func(*lambda.Options)) (*lambda.GetFunctionOutput, error) {
+	for _, v := range c.versions {
+		if v.n == aws.ToString(in.Qualifier) {
+			cfg := v.cfg
+			return &lambda.GetFunctionOutput{Code: &lambdatypes.FunctionCodeLocation{Location: aws.String("https://code/" + v.n)},
+				Configuration: &lambdatypes.FunctionConfiguration{Handler: cfg.Handler, Description: cfg.Description, Role: cfg.Role,
+					Runtime: cfg.Runtime, Environment: cfg.Environment}}, nil
+		}
+	}
+	return nil, errors.New("ResourceNotFoundException")
+}
+
+// fetchFrom serves a version's code at the URL GetFunction gave.
+func (c *cloud) fetch(_ context.Context, url string) ([]byte, error) {
+	for _, v := range c.versions {
+		if url == "https://code/"+v.n {
+			return v.code, nil
+		}
+	}
+	return nil, errors.New("404")
 }

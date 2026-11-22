@@ -61,6 +61,7 @@ type State struct {
 	ArchiveMsg string
 	Recent     []Event // up to the last 8 decisions of the past hour
 	Heartbeat  Heartbeat
+	RolledBack string // when it was rolled back; "" when it was not (rollback.go)
 }
 
 // Event is one logged decision.
@@ -132,6 +133,7 @@ func (r *Reader) Current(ctx context.Context) State {
 	if fnErr == nil && fn != nil {
 		st.Installed = true
 		st.FnState, st.FnRuntime = string(fn.State), string(fn.Runtime)
+		st.RolledBack, _ = IsRolledBack(aws.ToString(fn.Description))
 	}
 	st.Rule = strings.SplitN(rule, "\t", 2)[0]
 	acct := ""

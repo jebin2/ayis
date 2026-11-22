@@ -102,9 +102,12 @@ var Operations = []string{
 	"lambda:AddPermission",
 	"lambda:CreateFunction",
 	"lambda:DeleteFunction",
+	"lambda:GetFunction",
 	"lambda:GetFunctionConfiguration",
 	"lambda:GetPolicy",
 	"lambda:Invoke",
+	"lambda:ListVersionsByFunction",
+	"lambda:PublishVersion",
 	"lambda:RemovePermission",
 	"lambda:TagResource",
 	"lambda:UpdateFunctionCode",
@@ -139,7 +142,8 @@ var Operations = []string{
 	"ssm:GetParameter",
 	"ssm:GetParametersByPath",
 	"ssm:PutParameter",
-	"sts:GetCallerIdentity"}
+	"sts:GetCallerIdentity",
+}
 
 // service is the IAM prefix of each SDK package, where they differ.
 var service = map[string]string{"cloudwatchlogs": "logs", "eventbridge": "events", "costexplorer": "ce"}

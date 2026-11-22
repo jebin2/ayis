@@ -272,7 +272,10 @@ func (w *Watcher) JSON(f Facts, now time.Time) ([]byte, error) {
 				"idle_min": w.IdleMin, "stuck_min": w.StuckMin, "every_min": wd.EveryMin,
 				"armed": rule == "ENABLED", "state": l3State, "note": l3Note,
 				"last_decision": lastMsg, "last_decision_age_s": lastAge,
-				"last_ok_age_s": okAge, "late": late},
+				"last_ok_age_s": okAge, "late": late,
+				// Not what this version of ayis would deploy: the app offers the update,
+				// unless a person rolled it back on purpose.
+				"drift": f.Layer3.Drift, "rolled_back": nz(f.Layer3.RolledBack)},
 		},
 		"shutdown_action": map[string]any{"value": value, "expected": expected, "ok": f.Shutdown != "" && f.Shutdown == f.Want},
 		"budget":          map[string]any{"usd": budget, "alerts": f.Alerts},

@@ -102,15 +102,19 @@ func Run(ctx context.Context, env *config.Env, args []string, watch bool, out *o
 	if len(args) > 0 {
 		sub, args = args[0], args[1:]
 	}
+	force := false
 	for _, a := range args {
-		if a == "--watch" {
+		switch a {
+		case "--watch":
 			watch = true
+		case "--force":
+			force = true
 		}
 	}
 	switch sub {
-	case "status", "logs", "check", "install", "remove":
+	case "status", "logs", "check", "install", "remove", "rollback":
 	default:
-		out.Die("usage: ayis watchdog [status|check|logs [--watch]|install|remove]")
+		out.Die("usage: ayis watchdog [status|check|logs [--watch]|install [--force]|rollback|remove]")
 		return 1
 	}
 	r, err := NewReader(ctx, env)
@@ -118,8 +122,8 @@ func Run(ctx context.Context, env *config.Env, args []string, watch bool, out *o
 		out.Fail(err)
 		return 1
 	}
-	if sub == "check" || sub == "install" || sub == "remove" {
-		return mutate(ctx, env, r, sub, out)
+	if sub == "check" || sub == "install" || sub == "remove" || sub == "rollback" {
+		return mutateForce(ctx, env, r, sub, force, out)
 	}
 	if sub == "logs" {
 		return Logs(ctx, r, watch, out.Stdout)

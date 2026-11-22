@@ -680,12 +680,12 @@ check "  every Linux format is built" \
 # electron-builder writes "<name>-<version>.pacman", NOT a .pkg.tar.zst. The
 # file is a zstd package either way, but a glob for the wrong extension would
 # have shipped a release with the Arch package silently missing.
-contains "  and the workflow ships them"  "$(cat .github/workflows/desktop-release.yml)" "-name '*.pacman'"
+contains "  and the workflow ships them"  "$(cat .github/workflows/desktop-release.yml .github/release-body.md)" "-name '*.pacman'"
 # fpm shells out to bsdtar for the Arch package's .MTREE, and the Ubuntu runner
 # does not have it - the build spent four minutes on the other three formats
 # and then died with exit 127. Arch has bsdtar, so only CI ever saw it.
 contains "  and installs what fpm needs for them" \
-         "$(cat .github/workflows/desktop-release.yml)" "libarchive-tools"
+         "$(cat .github/workflows/desktop-release.yml .github/release-body.md)" "libarchive-tools"
 # electron-builder's default pacman dependencies are a Debian list with Debian
 # names: http-parser was dropped from Arch's repos and libappindicator-gtk3 is
 # AUR-only, so pacman refused the package outright - "cannot resolve
@@ -698,9 +698,9 @@ lacks "  not a name Arch has never had" \
       "$(node -e 'console.log(JSON.stringify(require("./app/package.json").build.pacman))')" "http-parser"
 lacks "  nor one that lives only in the AUR" \
       "$(node -e 'console.log(JSON.stringify(require("./app/package.json").build.pacman))')" "libappindicator"
-contains "  including the one with no dependencies" "$(cat .github/workflows/desktop-release.yml)" "-name '*.tar.gz'"
-contains "the release says which file to take" "$(cat .github/workflows/desktop-release.yml)" "Arch, CachyOS, Omarchy"
-contains "  and warns what the AppImage needs" "$(cat .github/workflows/desktop-release.yml)" "needs FUSE 2 on the machine"
+contains "  including the one with no dependencies" "$(cat .github/workflows/desktop-release.yml .github/release-body.md)" "-name '*.tar.gz'"
+contains "the release says which file to take" "$(cat .github/workflows/desktop-release.yml .github/release-body.md)" "Arch, CachyOS, Omarchy"
+contains "  and warns what the AppImage needs" "$(cat .github/workflows/desktop-release.yml .github/release-body.md)" "needs FUSE 2 on the machine"
 # A path INSIDE it, not the directory itself: the rule is `app/dist/`, which git
 # matches only against something it can see is a directory. On a fresh clone -
 # a release runner - app/dist does not exist yet, so asking about the directory
@@ -714,21 +714,21 @@ contains "  and how it was proven"       "$(cat app/README.md)" "verified by pac
 # A tag builds the release. The workflow runs this very suite first, so a
 # release cannot ship an app that grew AWS logic or a price of its own.
 check    "a release workflow exists"     "$([[ -s .github/workflows/desktop-release.yml ]] && echo yes || echo no)" "yes"
-contains "  triggered by a v tag"        "$(cat .github/workflows/desktop-release.yml)" "- 'v*'"
-contains "  the tag decides the version" "$(cat .github/workflows/desktop-release.yml)" "npm version --no-git-tag-version"
-contains "  and it runs these checks first" "$(cat .github/workflows/desktop-release.yml)" "bash tests/app.sh"
+contains "  triggered by a v tag"        "$(cat .github/workflows/desktop-release.yml .github/release-body.md)" "- 'v*'"
+contains "  the tag decides the version" "$(cat .github/workflows/desktop-release.yml .github/release-body.md)" "npm version --no-git-tag-version"
+contains "  and it runs these checks first" "$(cat .github/workflows/desktop-release.yml .github/release-body.md)" "bash tests/app.sh"
 # The release notes used to say the download needed a checkout. It carries the
 # scripts now, so saying otherwise would send people to clone a repo they do
 # not need - and the notes are the only instructions a downloader ever sees.
 contains "  the release says ayis is included" \
-         "$(cat .github/workflows/desktop-release.yml)" "travels with the app"
+         "$(cat .github/workflows/desktop-release.yml .github/release-body.md)" "travels with the app"
 contains "  and where settings go instead"  \
-         "$(cat .github/workflows/desktop-release.yml)" "~/.config/ayis/.env"
+         "$(cat .github/workflows/desktop-release.yml .github/release-body.md)" "~/.config/ayis/.env"
 lacks    "  not that a checkout is required" \
-         "$(cat .github/workflows/desktop-release.yml)" "This app needs the repo"
+         "$(cat .github/workflows/desktop-release.yml .github/release-body.md)" "This app needs the repo"
 # Three platforms, each with its own ayis: the program is named for the system it is
 # built for, and the packager takes the right one.
-wf="$(cat .github/workflows/desktop-release.yml)"
+wf="$(cat .github/workflows/desktop-release.yml .github/release-body.md)"
 contains "it builds for macOS"                "$wf" "runs-on: macos-latest"
 contains "  and for Windows"                  "$wf" "runs-on: windows-latest"
 contains "  the DMG for Intel and for Apple Silicon" "$wf" "--mac --x64"
@@ -800,6 +800,11 @@ else echo "  FAIL the renderer ships ${shipped} bytes - the budget is 1,000,000"
 pkg=$(cat app/package.json)
 contains "only English for Electron's own words (44 MB of other languages)" "$pkg" '"electronLanguages": ["en-US"]'
 contains "the stylesheet's source stays out"     "$pkg" '"!renderer/src.css"'
-contains "the release checks the AppImage's size" "$(cat .github/workflows/desktop-release.yml)" "AppImage over its budget"
+contains "the release checks the AppImage's size" "$(cat .github/workflows/desktop-release.yml .github/release-body.md)" "AppImage over its budget"
+contains "the release notes are the commits since the last tag" "$(cat .github/workflows/desktop-release.yml .github/release-body.md)" "tools/ci/release-notes.sh"
+contains "  under the fixed text"                 "$(cat .github/workflows/desktop-release.yml .github/release-body.md)" "body_path: release.md"
+contains "  which still says the builds are unsigned" "$(cat .github/release-body.md)" "Not signed"
+notes=$(bash tools/ci/release-notes.sh HEAD 2>&1)
+contains "  and the script makes them"            "$notes" "## Changes"
 
 echo; echo "passed $pass, failed $fail"; [[ $fail -eq 0 ]]

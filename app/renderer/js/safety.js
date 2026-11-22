@@ -72,6 +72,7 @@ function paintGuards(d) {
     $('g-warn').append(el);
   }
   $('g-warn').hidden = !warn.length;
+  paintWatchdogUpdate(cloud);
 
   const nets = $('g-nets');
   nets.textContent = '';
@@ -259,4 +260,33 @@ function paintDoctor(d) {
     : 'The AWS key, Tailscale, the cloud watchdog and the budget are all working.';
   b.dataset.worst = d.worst;
   b.onclick = () => goView('guards');
+}
+
+
+// The deployed cloud watchdog is not what this version of ayis deploys - a new
+// release, or settings changed - so offer the update here, where its state is
+// shown. One rolled back on purpose is said, and offered back only on request.
+function paintWatchdogUpdate(cloud) {
+  const box = $('g-wd-update');
+  if (!box) return;
+  const drift = (cloud.drift || []).filter(d => d === 'code changed' || d === 'settings changed');
+  box.textContent = '';
+  box.hidden = !(cloud.armed && (drift.length || cloud.rolled_back));
+  if (box.hidden) return;
+  const text = document.createElement('span');
+  text.textContent = cloud.rolled_back
+    ? `AWS auto-stop was rolled back (${cloud.rolled_back}) and is left that way.`
+    : 'AWS auto-stop is from an older version of ayis.';
+  const b = document.createElement('button');
+  b.className = 'btn';
+  b.textContent = cloud.rolled_back ? 'Use this version' : 'Update it';
+  b.onclick = async () => {
+    b.disabled = true;
+    const args = ['watchdog', 'install', ...(cloud.rolled_back ? ['--force'] : [])];
+    const { rc, err } = await runAyis(args, { wantRc: true });
+    if (rc === 0) note('AWS auto-stop updated', 'text-primary');
+    else note(`Not updated: ${(err || '').trim().split('\n').pop() || 'ayis watchdog install failed'}`, 'text-error');
+    b.disabled = false;
+  };
+  box.append(text, b);
 }

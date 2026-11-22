@@ -103,7 +103,13 @@ func AdoptNtfy(ctx context.Context, env *config.Env, out *output.Out) {
 }
 
 func mutate(ctx context.Context, env *config.Env, r *wd.Reader, sub string, out *output.Out) int {
+	return mutateForce(ctx, env, r, sub, false, out)
+}
+
+func mutateForce(ctx context.Context, env *config.Env, r *wd.Reader, sub string, force bool, out *output.Out) int {
 	switch sub {
+	case "rollback":
+		out.Say("rolling the cloud watchdog back to its last deploy")
 	case "install":
 		out.Say("installing the cloud watchdog")
 		adoptNtfy(ctx, env, r, out)
@@ -121,7 +127,14 @@ func mutate(ctx context.Context, env *config.Env, r *wd.Reader, sub string, out 
 		}
 		return 1
 	}
+	i.Force = force
 	switch sub {
+	case "rollback":
+		if err := i.Rollback(ctx); err != nil {
+			out.Fail(err)
+			return 1
+		}
+		i.Report(i.Prove(ctx))
 	case "install":
 		if err := i.Install(ctx); err != nil {
 			out.Die("the cloud watchdog was not installed")

@@ -171,6 +171,29 @@ cat > "$T/r/probe.js" <<'PROBE'
     paintGuards(W('running', { armed: true, state: 'armed' }, { armed: true, state: 'late', late: true, last_ok_age_s: 1500 },
                   { shutdown_action: { value: 'terminate', expected: 'terminate', ok: true } }));
     read('LATE');
+    // An older watchdog: the update is offered where its state is shown.
+    paintGuards(W('running', { armed: true, state: 'armed' }, { armed: true, state: 'armed', drift: ['code changed'] },
+                  { shutdown_action: { value: 'terminate', expected: 'terminate', ok: true } }));
+    const upd = document.getElementById('g-wd-update');
+    out.push('UPDATE | ' + (upd.hidden ? 'hidden' : upd.innerText.replace(/\s+/g, ' ').trim()));
+    window.__ran = [];
+    upd.querySelector('button').click();
+    await tick();
+    out.push('UPDATE RAN | ' + window.__ran.join(' ;; '));
+    window.__emit(window.__lastId, { t: 'exit', rc: 0 });
+    await tick();
+    paintGuards(W('running', { armed: true, state: 'armed' }, { armed: true, state: 'armed', drift: ['code changed'], rolled_back: '2026-11-22T10:00:00Z' },
+                  { shutdown_action: { value: 'terminate', expected: 'terminate', ok: true } }));
+    out.push('ROLLED | ' + upd.innerText.replace(/\s+/g, ' ').trim());
+    window.__ran = [];
+    upd.querySelector('button').click();
+    await tick();
+    out.push('ROLLED RAN | ' + window.__ran.join(' ;; '));
+    window.__emit(window.__lastId, { t: 'exit', rc: 0 });
+    await tick();
+    paintGuards(W('running', { armed: true, state: 'armed' }, { armed: true, state: 'armed', drift: [] },
+                  { shutdown_action: { value: 'terminate', expected: 'terminate', ok: true } }));
+    out.push('CURRENT | ' + (upd.hidden ? 'hidden' : 'shown'));
     // Fresh AWS, nothing built: every build sets both up before it launches.
     paintGuards(W('none', { armed: null, state: 'no box' }, { armed: false, state: 'not installed' },
                   { budget: { usd: null, alerts: 0 } }));
@@ -321,6 +344,13 @@ echo "5b. a watchdog that has not finished a check for 15 minutes says so"
 contains "in red, on top"                "$(row 'LATE WARN')" "AWS auto-stop has not finished a check for 25m - it may not be running."
 contains "  and its card is not On"      "$(row 'LATE NET3')" "Not running"
 lacks    "  not On"                      "$(row 'LATE NET3')" " On"
+
+echo "5c. an older watchdog is offered its update; one rolled back on purpose is said"
+check    "an older version: said, with Update it" "$(row 'UPDATE')" "UPDATE | AWS auto-stop is from an older version of ayis. Update it"
+check    "  which installs it"                    "$(row 'UPDATE RAN')" "UPDATE RAN | watchdog install"
+contains "rolled back: said, and left"            "$(row 'ROLLED')" "was rolled back (2026-11-22T10:00:00Z) and is left that way. Use this version"
+check    "  put back only when asked, with --force" "$(row 'ROLLED RAN')" "ROLLED RAN | watchdog install --force"
+check    "current: nothing offered"               "$(row 'CURRENT')" "CURRENT | hidden"
 
 echo "6. nothing threw"
 check "no painter threw"                 "$(grep -c '^THREW' <<<"$OUT")" "0"

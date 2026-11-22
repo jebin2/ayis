@@ -449,6 +449,26 @@ machine's restart to playable - both need a person at a desktop.
 **Exit:** a release cut entirely by pushing a tag, with nothing done by hand but pressing
 "Publish".
 
+**Done (2026-11-22).**
+
+- **Pipelines:** every push - any branch - runs lint, every test suite (the browser ones
+  included, since P3) and gitleaks; a tag runs all of that, then the Linux, macOS and Windows
+  builds, the AppImage's size budget, `SHA256SUMS`, build provenance, and a draft release. The
+  plan's "DOM suites only on PRs" was not needed: they take under two minutes on every push.
+- **Release notes:** `tools/ci/release-notes.sh` - the fixed text (`.github/release-body.md`, which
+  now also says how to check a download) and one line per commit since the previous tag; this
+  repository works without PRs, so GitHub's own notes would be empty.
+- **The watchdog matches the app:** the Safety page says when the deployed watchdog is from an
+  older version and offers **Update it** (`ayis watchdog install`).
+- **Rollback in one command:** before an install changes the function it is published as a Lambda
+  version (the last 3 kept, free); `ayis watchdog rollback` restores its code and settings and
+  marks it, so a build's install leaves it alone; `install --force` puts the current one back.
+  Tested: update, rollback, survive an install, force back, and pruning.
+- **Runbooks** in `docs/runbooks/`: release, rollback, watchdog redeploy, AWS account suspended.
+
+*Not yet proven:* the exit's "nothing by hand but Publish" holds on paper and in CI's pieces;
+the next real tag proves it end to end.
+
 ### P10 - Documentation and decisions (S, ongoing)
 
 - Backfill ADRs for the standing decisions, among them: Ubuntu over NixOS; Proton not mirrored;
