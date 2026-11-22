@@ -72,7 +72,7 @@ type Installer struct {
 
 	Host, Region string
 	Account      string
-	Source       []byte // lambda/cloud_watchdog.py
+	Source       []File // lambda/ayis_watchdog
 	Settings     Settings
 	TagKey       string
 

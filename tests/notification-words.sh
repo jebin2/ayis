@@ -7,25 +7,9 @@ cd "$(dirname "$0")/.."
 fail=0
 BAD='S3|EC2|GAME_[A-Z_]+|instance|mirror|\bayis (init|destroy|check|open)|\bi-[0-9a-f]|OS shutdown|compute'
 
-echo "1. lambda/cloud_watchdog.py: every notify() title and text"
-out=$(python3 -I - "$BAD" <<'PY'
-import ast, re, sys
-bad = re.compile(sys.argv[1])
-tree = ast.parse(open("lambda/cloud_watchdog.py").read())
-n = 0
-for node in ast.walk(tree):
-    if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "notify":
-        n += 1
-        text = " ".join(c.value for a in node.args[:2] for c in ast.walk(a)
-                        if isinstance(c, ast.Constant) and isinstance(c.value, str))
-        if bad.search(text):
-            print("  FAIL line %d: %s" % (node.lineno, text[:100])); sys.exit(1)
-print("  ok   %d messages" % n)
-PY
-) || fail=1
-echo "$out"
-
-echo "2. host scripts: every notify call"
+# The cloud watchdog's own messages are checked by lambda/tests/test_words.py
+# (tests/watchdog.sh), against the same words.
+echo "1. host scripts: every notify call"
 for f in host/idle-watchdog.sh host/ayis-shutdown-push.sh; do
   if grep -E '^\s*(\[\[.*\|\| )?notify ' -A1 "$f" | grep -E "$BAD"; then
     echo "  FAIL $f"; fail=1

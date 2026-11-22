@@ -17,7 +17,7 @@ Ayis is not a web service. It is three programs that run in three places and mus
 |---|---|---|
 | `ayis` CLI (Go) | the user's laptop | ~30,300 lines + ~16,000 lines of tests, 57 packages |
 | Desktop app (Electron) | the user's laptop | `app/renderer/app.js` is **one file of 8,678 lines**, 290 functions |
-| Cloud watchdog (Python Lambda) | the user's AWS account | `lambda/cloud_watchdog.py`, **one file of 1,312 lines** |
+| Cloud watchdog (Python Lambda) | the user's AWS account | `lambda/cloud_watchdog.py`, **one file of 1,312 lines** (P4: a package of twelve files) |
 | Box scripts (Bash) | the rented GPU machine | `host/` and `lib/bootstrap.d/`, ~40 scripts |
 
 So each of the twelve goals is defined here in terms that fit a single-user desktop tool that
@@ -56,7 +56,7 @@ Weaknesses, with evidence:
 | W10 | Secrets at rest are plain text, and the ntfy topic is a bearer secret that now carries cost figures. | `.env`; `ntfy.sh/<topic>` readable by anyone who knows the topic. |
 | W11 | macOS and Windows builds are unsigned. | Release notes say so. |
 | W12 | Decisions are buried in prose; old plans sit next to live docs. | `docs/architecture.md` "Key decisions"; `go-plan.md`, `rename-ayis-plan.md`, `own-machine-plan.md` are finished work. |
-| W13 | The Lambda's tests are Python embedded in Bash heredocs. | `tests/hard-limits.sh`, `tests/lambda-watchdog.sh`. |
+| W13 | The Lambda's tests are Python embedded in Bash heredocs. | `tests/hard-limits.sh`, `tests/lambda-watchdog.sh`. **Fixed in P4.** |
 | W14 | Repository clutter. | `stitch_design/` (mock-ups) and `ayis.md` tracked at the root. |
 
 ## 3. Principles for every phase
@@ -119,7 +119,7 @@ job blocks:
 | golangci-lint v2.15.0 | 72 | 37 unchecked errors, 13 staticcheck, 8 unused, 5 `nilerr` (an error swallowed as success), 5 gocritic, 4 over complexity 40 - worst is `cmd/ayis` `run()` at 113 |
 | ESLint 10.15.0 | 33 | 23 unused names, 7 over complexity 60, 2 `var`, 1 file over 1,500 lines (`app.js`); **no undefined names** |
 | Ruff 0.17.6 | 34 | after turning off %-formatting, which the watchdog uses on purpose |
-| mypy 2.4.1 | 0 / 281 | clean as written; 281 under `--strict`, which needs type hints (P4) |
+| mypy 2.4.1 | 0 / 281 | clean as written; 281 under `--strict`, which needs type hints - 0 since P4, and blocking |
 | ShellCheck 0.11.0 | 101 warnings, 1 error | across 83 scripts; most are `cd` without `|| exit` (SC2164) |
 | Coverage | 65.2% | floor set at 65% in `tools/ci/coverage.sh` |
 
@@ -253,6 +253,28 @@ careful work, best done page by page alongside the next change to each page.
 
 **Cost:** ₹0 - same Lambda, same schedule.
 **Exit:** all 238 existing Lambda checks pass under pytest; no module over 500 lines.
+
+**Done (2026-11-22).** `lambda/ayis_watchdog/` is twelve files, the largest 270 lines: `handler`,
+`limits`, `idle`, `stopped`, `archive`, `games`, `events`, `notify`, `aws`, `common`, `settings`
+(the plan's five, plus the three checks it did not name and the two shared ones). Settings are read
+as `settings.NAME` at call time, so a test changes one per case. `internal/watchdog.Zip` now packs
+every `.py` file of the package, still byte-identical from the same source and still checked against
+Python's own `zipfile`; the handler is `ayis_watchdog.handler.handler`.
+
+- **Tests:** the 238 checks of `tests/lambda-watchdog.sh` and `tests/hard-limits.sh` are 184
+  pytest tests in `lambda/tests/` running 242 assertions; `tests/watchdog.sh` runs them in the suite.
+  Two of the old checks asserted nothing useful and were replaced, not copied: one compared
+  `print(1)` with `1`, now it checks the kept bucket's Steam login really stays; one grepped the
+  source for a call, now the scheduled run is shown deleting a stopped box. Breaking the
+  threshold comparison or the hourly limit on "watchdog failing" fails a test, as it should.
+- **Contracts across languages, now tested:** every tag the function writes is one its IAM policy
+  allows (a tag missing from the policy is refused by AWS at the moment a shutdown is being
+  recorded), and the limits' tag and warning time match the CLI's.
+- **Lint:** Ruff (whole repo) and `mypy --strict` block in CI, on Python 3.13 as Lambda runs it.
+  `tools/draw-wallpaper.py` was fixed to pass, and draws a byte-identical picture.
+- **Deploying it:** the first `ayis watchdog install` (or any command that repairs the watchdog)
+  after this uploads the new zip and handler - the function reads as "code changed" until then.
+  ₹0: same function, same schedule.
 
 ### P5 - Errors and resilience (M)
 

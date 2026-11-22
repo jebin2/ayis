@@ -10,48 +10,91 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
+// Python's zipfile writing the same entries, the same way: the zip Lambda
+// unpacks must be one any ordinary tool reads.
 const pyZip = `
-import sys, zipfile, hashlib, base64
+import sys, zipfile, hashlib, base64, pathlib
 src, out = sys.argv[1:3]
-info = zipfile.ZipInfo("cloud_watchdog.py", (1980, 1, 1, 0, 0, 0))
-info.external_attr = 0o644 << 16
 with zipfile.ZipFile(out, "w", zipfile.ZIP_STORED) as z:
-    z.writestr(info, open(src, "rb").read())
+    for f in sorted(pathlib.Path(src).glob("*.py")):
+        info = zipfile.ZipInfo("ayis_watchdog/" + f.name, (1980, 1, 1, 0, 0, 0))
+        info.external_attr = 0o644 << 16
+        z.writestr(info, f.read_bytes())
 print(base64.b64encode(hashlib.sha256(open(out, "rb").read()).digest()).decode())
 `
 
-// The package must be byte-identical to the one the Bash ayis builds with
-// Python's zipfile: Lambda's CodeSha256 of a function it deployed is compared
-// against this, and one differing byte reads as "code changed" forever.
-func TestZipIsByteIdenticalToPythons(t *testing.T) {
-	src, err := os.ReadFile("../../lambda/cloud_watchdog.py")
+func source(t *testing.T) []File {
+	t.Helper()
+	files, err := Package(os.DirFS("../../lambda"), PackageDir)
 	if err != nil {
 		t.Fatal(err)
 	}
+	return files
+}
+
+func TestZipIsByteIdenticalToPythons(t *testing.T) {
+	files := source(t)
 	out := filepath.Join(t.TempDir(), "fn.zip")
-	b, err := exec.Command("python3", "-I", "-c", pyZip, "../../lambda/cloud_watchdog.py", out).Output()
+	b, err := exec.Command("python3", "-I", "-c", pyZip, "../../lambda/"+PackageDir, out).Output()
 	if err != nil {
 		t.Skip("no python3")
 	}
 	want, _ := os.ReadFile(out)
-	got, sha := Zip(src)
+	got, sha := Zip(files)
 	if !bytes.Equal(got, want) {
 		t.Fatalf("zip differs: got %d bytes, python %d", len(got), len(want))
 	}
 	if sha != strings.TrimSpace(string(b)) {
 		t.Errorf("sha %s want %s", sha, b)
 	}
-	// And it is a real zip.
+	// And it is a real zip of every file, each one the source.
 	r, err := zip.NewReader(bytes.NewReader(got), int64(len(got)))
-	if err != nil || len(r.File) != 1 || r.File[0].Name != "cloud_watchdog.py" {
-		t.Fatalf("not a zip of one file: %v", err)
+	if err != nil || len(r.File) != len(files) {
+		t.Fatalf("not a zip of %d files: %v", len(files), err)
 	}
-	f, _ := r.File[0].Open()
-	body, _ := io.ReadAll(f)
-	if !bytes.Equal(body, src) {
-		t.Error("the entry is not the source")
+	for i, zf := range r.File {
+		f, _ := zf.Open()
+		body, _ := io.ReadAll(f)
+		if zf.Name != files[i].Name || !bytes.Equal(body, files[i].Data) {
+			t.Errorf("entry %d is %s, not the source %s", i, zf.Name, files[i].Name)
+		}
+	}
+}
+
+// The package is the .py files only - the handler among them - and the same
+// source is the same zip every time.
+func TestPackageShipsTheSourceOnly(t *testing.T) {
+	fsys := fstest.MapFS{
+		"l/ayis_watchdog/handler.py":              {Data: []byte("h")},
+		"l/ayis_watchdog/__init__.py":             {Data: []byte("")},
+		"l/ayis_watchdog/__pycache__/handler.pyc": {Data: []byte("x")},
+		"l/ayis_watchdog/notes.txt":               {Data: []byte("x")},
+		"l/tests/test_idle.py":                    {Data: []byte("x")},
+	}
+	files, err := Package(fsys, "l/ayis_watchdog")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, f := range files {
+		names = append(names, f.Name)
+	}
+	if got := strings.Join(names, ","); got != "ayis_watchdog/__init__.py,ayis_watchdog/handler.py" {
+		t.Errorf("shipped %s", got)
+	}
+	a, _ := Zip(files)
+	b, _ := Zip(files)
+	if !bytes.Equal(a, b) {
+		t.Error("the same source made two different zips")
+	}
+	if _, err := Package(fsys, "l/nothing"); err == nil {
+		t.Error("an empty folder must be an error, not an empty function")
+	}
+	if !strings.HasPrefix(Handler, PackageDir+".") {
+		t.Errorf("handler %s is not in the package", Handler)
 	}
 }
 
@@ -75,7 +118,7 @@ func TestEnvAndFingerprint(t *testing.T) {
 		t.Error("a changed setting must change the fingerprint")
 	}
 	// The same text the shell hashed: runtime|handler|role|timeout|memory|env, newline.
-	out, err := exec.Command("bash", "-c", `printf '%s|%s|%s|300|128|%s\n' python3.13 cloud_watchdog.handler "$1" "$2" | sha256sum | cut -c1-12`,
+	out, err := exec.Command("bash", "-c", `printf '%s|%s|%s|300|128|%s\n' python3.13 ayis_watchdog.handler.handler "$1" "$2" | sha256sum | cut -c1-12`,
 		"_", "arn:aws:iam::1:role/r", s.Env()).Output()
 	if _, nosum := exec.LookPath("sha256sum"); nosum == nil && err == nil && strings.TrimSpace(string(out)) != s.Fingerprint("arn:aws:iam::1:role/r") {
 		t.Errorf("fingerprint differs from the shell's: %s", out)

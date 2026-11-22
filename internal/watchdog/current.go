@@ -42,7 +42,7 @@ type Reader struct {
 	Now    func() time.Time
 
 	Host, Region string
-	Source       []byte                        // lambda/cloud_watchdog.py, as shipped
+	Source       []File                        // lambda/ayis_watchdog, as shipped
 	Settings     func(account string) Settings // what it would be deployed with
 }
 

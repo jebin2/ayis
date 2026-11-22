@@ -1,8 +1,8 @@
 # Linters for every language in ayis (docs/plans/production-readiness.md, P0).
 #
-# REPORT-ONLY for now: each job may fail without failing the push, so today's
-# findings can be fixed in their own changes. Once a language is clean its job
-# loses `continue-on-error` and blocks like the tests do. Configs: .golangci.yml,
+# A language whose findings are not all fixed yet is REPORT-ONLY: its job may fail
+# without failing the push. Once a language is clean its job loses
+# `continue-on-error` and blocks like the tests do - Python since P4. Configs: .golangci.yml,
 # app/eslint.config.mjs, ruff.toml. Nothing here touches AWS.
 name: Lint
 
@@ -56,24 +56,22 @@ jobs:
           npx eslint .
         shell: bash
 
+  # Blocking since P4: the watchdog is the one piece that ends machines and
+  # deletes games unattended, so it is held to the strictest checks.
   python:
-    name: Watchdog (Ruff, mypy)
+    name: Watchdog (Ruff, mypy --strict)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.12'   # the Lambda runtime
+          python-version: '3.13'   # the Lambda runtime (internal/watchdog RuntimeName)
       - run: pip install ruff==0.17.6 mypy==2.4.1
       - name: Ruff
         run: ruff check
-      - name: mypy
-        run: mypy --ignore-missing-imports lambda/cloud_watchdog.py
-      # The P4 goal; reported, not yet required.
-      - name: mypy --strict (goal)
-        run: mypy --strict --ignore-missing-imports lambda/cloud_watchdog.py || true
+      - name: mypy --strict
+        run: mypy --strict --ignore-missing-imports lambda/ayis_watchdog
 
   shell:
     name: Scripts (ShellCheck)

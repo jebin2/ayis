@@ -30,7 +30,7 @@ func scenario(state, lifecycle string) *fx.Scenario {
 
 func build(s *fx.Scenario, r *fx.Runner, instance string) *Watcher {
 	reader := &wd.Reader{Lambda: fx.Lambda{S: s}, Events: fx.Events{S: s}, IAM: fx.RolePolicies{S: s}, Logs: fx.Logs{S: s},
-		Now: func() time.Time { return now }, Host: host, Region: "ap-south-2", Source: []byte("x"),
+		Now: func() time.Time { return now }, Host: host, Region: "ap-south-2", Source: []wd.File{{Name: "ayis_watchdog/handler.py", Data: []byte("x")}},
 		Settings: func(string) wd.Settings { return wd.Settings{Host: host} }}
 	return &Watcher{EC2: fx.EC2{S: s}, Budgets: fx.Budgets{S: s}, STS: fx.STS{S: s}, Reader: reader, Runner: r,
 		Host: host, Node: host, InstanceID: instance, Home: "/h", HostIdleLimit: 30, IdleMin: 30, StuckMin: 60, ExpiryDays: 14}

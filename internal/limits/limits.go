@@ -1,6 +1,6 @@
 // Package limits is the CLI side of the hard cost limits: the month's machine
 // hours, one session's length, and the AWS budget's block. The cloud watchdog
-// (lambda/cloud_watchdog.py limits()) is what ENFORCES them, every 5 minutes, on
+// (lambda/ayis_watchdog/limits.py) is what ENFORCES them, every 5 minutes, on
 // a machine that is running; this package reads where they stand, extends them
 // when you ask, refuses to start a machine past one, and arms and undoes the
 // budget's block.
@@ -35,7 +35,7 @@ import (
 	"github.com/jebin2/ayis/internal/ec2find"
 )
 
-// The tags and names the watchdog reads. They must match lambda/cloud_watchdog.py.
+// The tags and names the watchdog reads. They must match lambda/ayis_watchdog/settings.py (checked by a test).
 const (
 	SessionUntilTag = "ayis-session-until"
 	// WarnMinutes is how long before a limit the watchdog warns.

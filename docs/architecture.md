@@ -184,6 +184,31 @@ one would silently replace the earlier, as one `cell` replaced another for month
 nothing uses, and on a variable written by a script other than its own unless `state.js` declares it. ESLint knows every script's top-level names, so an undefined name is still an error.
 Tests read the renderer through `tests/lib/renderer.sh`, in `index.html`'s order.
 
+## The cloud watchdog
+
+The watchdog is a Python package, `lambda/ayis_watchdog/`, run by AWS Lambda every 5 minutes
+and on EC2's own state-change events. ayis ships it inside the binary (`embed.go`) and deploys
+it as one zip (`internal/watchdog.Zip`): the package's `.py` files and nothing else, byte for
+byte the same zip from the same source, so "is the deployed code current" is one comparison
+against Lambda's `CodeSha256`. The handler is `ayis_watchdog.handler.handler`.
+
+| Module | Holds |
+|---|---|
+| `handler` | the entry point; `run_all` runs the checks below in order, each even when one before it failed |
+| `limits` | the hard limits: the month's hours, a session's length, a spent budget |
+| `idle` | a running box nobody uses, and a shutdown that is stuck |
+| `stopped` | an on-demand box left stopped for the days games are kept |
+| `archive`, `games` | the saved games once no box has existed for those days - whole, or one game at a time |
+| `events` | "the box really is gone" and the spot warning, from EC2's events; the games disk after an idle stop |
+| `notify`, `aws`, `common` | the phone message, the EC2 and SSM calls the checks share, times and sizes |
+| `settings` | everything ayis configured the function with, read as `settings.NAME` at call time |
+
+Its tests are pytest, in `lambda/tests/`, against fake AWS clients (`tests/watchdog.sh` runs
+them in the suite). Ruff and `mypy --strict` block in CI. Two Go tests hold the Go and Python
+halves to one contract: every tag the function writes is one its IAM policy allows
+(`internal/watchdog/contract_test.go`), and the limits' tag and warning time are the ones the
+CLI uses (`internal/limits`).
+
 ## Flow 1 - `ayis init`: build a box
 
 ```mermaid

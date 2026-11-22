@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -249,5 +251,22 @@ func TestBlockedAndUnblock(t *testing.T) {
 	_ = (Block{IAM: &fakeIAM{}, Budgets: bu, Account: "1", Host: "ayis"}).Unblock(ctx)
 	if len(bu.calls) != 0 {
 		t.Errorf("standby must not be executed: %v", bu.calls)
+	}
+}
+
+// The watchdog that enforces the limits is Python; these names are the contract.
+func TestTheWatchdogReadsTheSameNames(t *testing.T) {
+	b, err := os.ReadFile("../../lambda/ayis_watchdog/settings.py")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(b)
+	for _, want := range []string{
+		fmt.Sprintf("SESSION_UNTIL_TAG = %q", SessionUntilTag),
+		fmt.Sprintf("LIMIT_WARN_MINUTES = %d", WarnMinutes),
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("lambda/ayis_watchdog/settings.py lacks %s", want)
+		}
 	}
 }

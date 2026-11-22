@@ -9,7 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/crc32"
+	"io/fs"
+	"path"
 	"reflect"
+	"sort"
 )
 
 // What the cloud watchdog is made of. Everything here is what the deployed
@@ -17,7 +20,7 @@ import (
 // current", and `ayis watchdog check` says which piece drifted.
 const (
 	RuntimeName = "python3.13"
-	Handler     = "cloud_watchdog.handler"
+	Handler     = PackageDir + ".handler.handler"
 	PolicyName  = "idle-guard"
 	EveryMin    = 5 // how often the schedule runs it; the rule and the app read this one number
 	TimeoutSec  = 300
@@ -202,68 +205,103 @@ func PolicyMatches(deployed []byte, want map[string]any) bool {
 	return reflect.DeepEqual(got, w)
 }
 
+// File is one file of the deployment package, by its path inside the zip.
+type File struct {
+	Name string
+	Data []byte
+}
+
+// PackageDir is the Python package the function is, and the folder it ships in.
+const PackageDir = "ayis_watchdog"
+
+// Package reads the function's source: every .py file of dir in fsys, named
+// ayis_watchdog/<file> and in name order, so the same source is always the same
+// zip. Anything else in the folder (a __pycache__, the tests beside it) is not
+// shipped.
+func Package(fsys fs.FS, dir string) ([]File, error) {
+	names, err := fs.Glob(fsys, path.Join(dir, "*.py"))
+	if err != nil {
+		return nil, err
+	}
+	if len(names) == 0 {
+		return nil, fmt.Errorf("no watchdog source in %s", dir)
+	}
+	sort.Strings(names)
+	files := make([]File, 0, len(names))
+	for _, n := range names {
+		b, err := fs.ReadFile(fsys, n)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, File{Name: PackageDir + "/" + path.Base(n), Data: b})
+	}
+	return files, nil
+}
+
 // Zip is the deployment package, byte-identical on every run: a fixed
-// timestamp, the file stored rather than deflated (zlib versions compress
-// differently), the entry named cloud_watchdog.py with mode 0644. That is what
-// lets "is the deployed code current" be one comparison against Lambda's
-// CodeSha256, and it reproduces the package the Bash ayis has always built so a
-// function it deployed reads as current here. It returns the zip and the
-// base64 SHA-256 Lambda reports.
-func Zip(source []byte) (zip []byte, codeSHA256 string) {
-	const name = "cloud_watchdog.py"
-	crc := crc32.ChecksumIEEE(source)
-	size := uint32(len(source))
+// timestamp, each file stored rather than deflated (zlib versions compress
+// differently), mode 0644, in the order given. That is what lets "is the
+// deployed code current" be one comparison against Lambda's CodeSha256. It
+// returns the zip and the base64 SHA-256 Lambda reports.
+func Zip(files []File) (zip []byte, codeSHA256 string) {
 	const dosTime, dosDate = 0, 0x21 // 1980-01-01 00:00:00
 	le := binary.LittleEndian
-	var b bytes.Buffer
-	w := func(v any) { _ = binary.Write(&b, le, v) }
+	var b, central bytes.Buffer
+	w := func(buf *bytes.Buffer, v any) { _ = binary.Write(buf, le, v) }
 
-	// Local file header.
-	w(uint32(0x04034b50))
-	w(uint16(20)) // version needed
-	w(uint16(0))  // flags
-	w(uint16(0))  // stored
-	w(uint16(dosTime))
-	w(uint16(dosDate))
-	w(crc)
-	w(size)
-	w(size)
-	w(uint16(len(name)))
-	w(uint16(0))
-	b.WriteString(name)
-	b.Write(source)
+	for _, f := range files {
+		crc := crc32.ChecksumIEEE(f.Data)
+		size := uint32(len(f.Data))
+		offset := uint32(b.Len())
+
+		// Local file header.
+		w(&b, uint32(0x04034b50))
+		w(&b, uint16(20)) // version needed
+		w(&b, uint16(0))  // flags
+		w(&b, uint16(0))  // stored
+		w(&b, uint16(dosTime))
+		w(&b, uint16(dosDate))
+		w(&b, crc)
+		w(&b, size)
+		w(&b, size)
+		w(&b, uint16(len(f.Name)))
+		w(&b, uint16(0))
+		b.WriteString(f.Name)
+		b.Write(f.Data)
+
+		// Its central directory entry, written after every file.
+		w(&central, uint32(0x02014b50))
+		w(&central, uint16(3<<8|20)) // made by: unix, 2.0
+		w(&central, uint16(20))
+		w(&central, uint16(0))
+		w(&central, uint16(0))
+		w(&central, uint16(dosTime))
+		w(&central, uint16(dosDate))
+		w(&central, crc)
+		w(&central, size)
+		w(&central, size)
+		w(&central, uint16(len(f.Name)))
+		w(&central, uint16(0)) // extra
+		w(&central, uint16(0)) // comment
+		w(&central, uint16(0)) // disk
+		w(&central, uint16(0)) // internal attributes
+		w(&central, uint32(0o644<<16))
+		w(&central, offset)
+		central.WriteString(f.Name)
+	}
 	centralAt := uint32(b.Len())
-
-	// Central directory.
-	w(uint32(0x02014b50))
-	w(uint16(3<<8 | 20)) // made by: unix, 2.0
-	w(uint16(20))
-	w(uint16(0))
-	w(uint16(0))
-	w(uint16(dosTime))
-	w(uint16(dosDate))
-	w(crc)
-	w(size)
-	w(size)
-	w(uint16(len(name)))
-	w(uint16(0)) // extra
-	w(uint16(0)) // comment
-	w(uint16(0)) // disk
-	w(uint16(0)) // internal attributes
-	w(uint32(0o644 << 16))
-	w(uint32(0)) // offset of the local header
-	b.WriteString(name)
-	centralSize := uint32(b.Len()) - centralAt
+	centralSize := uint32(central.Len())
+	b.Write(central.Bytes())
 
 	// End of central directory.
-	w(uint32(0x06054b50))
-	w(uint16(0))
-	w(uint16(0))
-	w(uint16(1))
-	w(uint16(1))
-	w(centralSize)
-	w(centralAt)
-	w(uint16(0))
+	w(&b, uint32(0x06054b50))
+	w(&b, uint16(0))
+	w(&b, uint16(0))
+	w(&b, uint16(len(files)))
+	w(&b, uint16(len(files)))
+	w(&b, centralSize)
+	w(&b, centralAt)
+	w(&b, uint16(0))
 
 	sum := sha256.Sum256(b.Bytes())
 	return b.Bytes(), base64.StdEncoding.EncodeToString(sum[:])

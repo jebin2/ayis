@@ -90,6 +90,16 @@ jobs:
           done
         shell: bash
 
+      # The cloud watchdog's tests are pytest (tests/watchdog.sh runs them), on
+      # the Lambda's own Python.
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - name: Install pytest
+        run: pip install pytest==9.1.1
+
       # RUN UNPIPED: the script's exit status is the point (see its header).
       # A failed suite's whole output is folded into this log, listed on the run's
       # summary page with its time, and kept as a download below.

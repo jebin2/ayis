@@ -28,7 +28,7 @@ func settings(string) wd.Settings {
 // current is a watchdog deployed exactly as this repo would make it.
 func current(t *testing.T) (*fx.Scenario, *wd.Reader) {
 	t.Helper()
-	src, err := os.ReadFile("../../../lambda/cloud_watchdog.py")
+	src, err := wd.Package(os.DirFS("../../../lambda"), wd.PackageDir)
 	if err != nil {
 		t.Fatal(err)
 	}

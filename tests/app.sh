@@ -120,7 +120,7 @@ contains "  and .env.example with it"    "$packed" ".env.example"
 for d in lib host lambda; do
   lacks "  no loose $d/ in the package" " $packed " " $d "
 done
-for d in host lib/bootstrap.d lambda/cloud_watchdog.py; do
+for d in host lib/bootstrap.d lambda/ayis_watchdog; do
   contains "  ayis embeds $d" "$(cat embed.go)" "$d"
 done
 

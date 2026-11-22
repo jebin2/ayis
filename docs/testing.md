@@ -5,11 +5,11 @@ Where things are, and how the test suites prove the risky paths without spending
 ## Layout
 
     cmd/ayis, internal/  ayis, the one program - every command (go build -o ayis ./cmd/ayis)
-    embed.go           what is compiled into it: host/, lib/bootstrap.d/, lambda/
+    embed.go           what is compiled into it: host/, lib/bootstrap.d/, lambda/ayis_watchdog/
     lib/bootstrap.d/   the box's cloud-init modules, sent to the instance in user-data
     host/              units deployed to the instance (watchdog, disk monitor, S3 mirror)
-    lambda/            the cloud watchdog, deployed as a zip to AWS Lambda
-    tests/             shell tests for the box-side scripts, the Lambda and the app
+    lambda/            the cloud watchdog (a Python package, deployed as a zip to AWS Lambda) and its pytest tests
+    tests/             shell tests for the box-side scripts and the app; watchdog.sh runs the Lambda's pytest
     app/               the Electron app, which only runs ayis
     docs/              everything linked from the README
 

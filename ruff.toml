@@ -1,6 +1,6 @@
 # Ruff for the cloud watchdog (docs/plans/production-readiness.md, P0).
-# Report-only in CI until today's findings are fixed; then it blocks.
-target-version = "py312"   # the Lambda runtime
+# Blocking in CI since P4.
+target-version = "py313"   # the Lambda runtime (internal/watchdog RuntimeName)
 line-length = 130
 include = ["lambda/**/*.py", "tools/**/*.py"]
 
@@ -12,4 +12,9 @@ ignore = [
   "PLR0917",  # the same, positionally
   "UP031",    # %-formatting is the watchdog's one consistent style
   "PLC0415",  # boto3 is imported in the handler: the tests run without it
+  "PLR0911",  # a decision returns as soon as it knows, saying why at each step
+  "UP017",    # datetime.UTC is 3.11+; the tests also run on the 3.10 some machines have
 ]
+
+[lint.pylint]
+max-branches = 17   # today's worst (archive.expire_archive); only goes down

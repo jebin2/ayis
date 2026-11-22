@@ -36,7 +36,7 @@ func NewReader(ctx context.Context, env *config.Env) (*wd.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	src, err := ayis.Files.ReadFile("lambda/cloud_watchdog.py")
+	src, err := wd.Package(ayis.Files, "lambda/"+wd.PackageDir)
 	if err != nil {
 		return nil, err
 	}

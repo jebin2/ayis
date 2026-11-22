@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -299,10 +298,7 @@ func (c *cloud) DeleteParameters(_ context.Context, in *ssm.DeleteParametersInpu
 }
 
 func installer(t *testing.T, c *cloud) (*Installer, *[]string) {
-	src, err := os.ReadFile("../../lambda/cloud_watchdog.py")
-	if err != nil {
-		t.Fatal(err)
-	}
+	src := source(t)
 	var said []string
 	return &Installer{
 		Lambda: c, Events: c, IAM: c, Logs: logsClient{c}, SSM: c,
