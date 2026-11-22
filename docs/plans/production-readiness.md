@@ -292,6 +292,36 @@ Python's own `zipfile`; the handler is `ayis_watchdog.handler.handler`.
 **Exit:** fault-injection tests for throttling, timeout and mid-write cancel pass; a disabled
 watchdog shows a warning in the app within 15 minutes.
 
+**Done (2026-11-22).**
+
+- **One retry and timeout policy** (`internal/awscfg`): standard retries, 5 tries, backoff up to
+  20 s; a call whose caller set no deadline gets 2 minutes, retries included - except `GetObject`,
+  whose body is read after the call returns. *Changed from the plan:* not adaptive mode. Its
+  client-side rate limiter starts from the rate it has measured, and after one throttle a CLI that
+  had made two calls waited over 2 seconds for its third (found by the test). Fault-injection
+  tests against a local fake: throttled then fine, always down, a mistake asked once, hung until
+  the deadline, the caller's own deadline kept, a body still readable after the call.
+- **Errors sorted in one place** (`internal/fault`): *yours to fix*, *try again*, *bug*, each with
+  one sentence of advice. `Out.Fail(err)` prints it under the error; in events mode the error
+  event carries `class` and `hint`, and the app shows the hint after the words. 65 commands that
+  printed `err.Error()` use it.
+- **Stopped part way, run again:** a test for each of the four.
+  - `limits arm`: stopped at each of its 4 writes, with that write landing in AWS or not; the
+    rerun arms exactly once. It already was safe; now it is tested.
+  - `destroy`: stopped at each of 7 writes. **Found a real leak:** stopped (or refused) between
+    deregistering an image and deleting its snapshots, the snapshots were left billing for good -
+    the next destroy looked for images only. Destroy now also finds ayis's tagged snapshots
+    that no image uses, says them in its plan, and deletes them.
+  - `library` push: a push that was cut off is finished by the next one, manifest last.
+  - `init`: stopped after the launch and before the box was written down, the rerun finds it
+    by its tag and launches no second one.
+- **Dead-man signal:** after every good run the watchdog writes `/ayis/<host>/watchdog/last-ok`
+  (free; its role may write that one parameter). Over 15 minutes old, `ayis watcher --json` says
+  `late`, the Safety page says so in red with the card "Not running", and `ayis watchdog` prints
+  a failure line. Never written, or unreadable, is not late.
+  *Not done:* the box's own watchdog repeating the warning. The box has no AWS access to read
+  it, and giving it some belongs to P6's review of what each part may do.
+
 ### P6 - Security (M)
 
 - Write `docs/security/threat-model.md`: assets (AWS keys, Tailscale keys, Steam login token,

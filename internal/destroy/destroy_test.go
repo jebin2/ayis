@@ -23,6 +23,7 @@ type res struct {
 // honoured, so a test that forgets ayis's tag finds another project's AMI and fails.
 type cloud struct {
 	instances, images, volumes []res
+	snapshots                  []res
 	spot                       map[string]string // instance -> request
 	failTerminate              bool
 	failLookup, failCancel     bool // the spot request cannot be found / cancelled
@@ -31,6 +32,38 @@ type cloud struct {
 	failDeregister, failSnap   map[string]bool
 	failVolume                 map[string]bool
 	calls                      []string
+	// stopAt is the write call that is cut off (1-based; 0 never): the destroy
+	// is stopped there, as by Ctrl+C or a closed laptop.
+	writes, stopAt int
+}
+
+// write is one call that changes something; it may be the one that is cut off.
+func (c *cloud) write() error {
+	c.writes++
+	if c.writes == c.stopAt {
+		return context.Canceled
+	}
+	return nil
+}
+
+func drop(rs []res, id string) []res {
+	var out []res
+	for _, r := range rs {
+		if r.id != id {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+func (c *cloud) DescribeSnapshots(_ context.Context, in *ec2.DescribeSnapshotsInput, _ ...func(*ec2.Options)) (*ec2.DescribeSnapshotsOutput, error) {
+	var out []ec2types.Snapshot
+	for _, r := range c.snapshots {
+		if match(r, in.Filters) {
+			out = append(out, ec2types.Snapshot{SnapshotId: aws.String(r.id)})
+		}
+	}
+	return &ec2.DescribeSnapshotsOutput{Snapshots: out}, nil
 }
 
 func match(r res, fs []ec2types.Filter) bool {
@@ -83,14 +116,34 @@ func (c *cloud) CancelSpotInstanceRequests(_ context.Context, in *ec2.CancelSpot
 	if c.failCancel {
 		return nil, errors.New("UnauthorizedOperation")
 	}
+	if err := c.write(); err != nil {
+		return nil, err
+	}
 	c.calls = append(c.calls, "cancel "+strings.Join(in.SpotInstanceRequestIds, ","))
+	for i, r := range c.spot {
+		for _, q := range in.SpotInstanceRequestIds {
+			if r == q {
+				delete(c.spot, i)
+			}
+		}
+	}
 	return &ec2.CancelSpotInstanceRequestsOutput{}, nil
 }
 func (c *cloud) TerminateInstances(_ context.Context, in *ec2.TerminateInstancesInput, _ ...func(*ec2.Options)) (*ec2.TerminateInstancesOutput, error) {
 	if c.failTerminate {
 		return nil, errors.New("UnauthorizedOperation")
 	}
+	if err := c.write(); err != nil {
+		return nil, err
+	}
 	c.calls = append(c.calls, "terminate "+strings.Join(in.InstanceIds, ","))
+	for i := range c.instances {
+		for _, id := range in.InstanceIds {
+			if c.instances[i].id == id {
+				c.instances[i].state = "terminated"
+			}
+		}
+	}
 	return &ec2.TerminateInstancesOutput{}, nil
 }
 func (c *cloud) DescribeImages(_ context.Context, in *ec2.DescribeImagesInput, _ ...func(*ec2.Options)) (*ec2.DescribeImagesOutput, error) {
@@ -124,7 +177,11 @@ func (c *cloud) DeregisterImage(_ context.Context, in *ec2.DeregisterImageInput,
 	if c.failDeregister[id] {
 		return nil, errors.New("AuthFailure")
 	}
+	if err := c.write(); err != nil {
+		return nil, err
+	}
 	c.calls = append(c.calls, "deregister "+id)
+	c.images = drop(c.images, id)
 	return &ec2.DeregisterImageOutput{}, nil
 }
 func (c *cloud) DeleteSnapshot(_ context.Context, in *ec2.DeleteSnapshotInput, _ ...func(*ec2.Options)) (*ec2.DeleteSnapshotOutput, error) {
@@ -132,7 +189,11 @@ func (c *cloud) DeleteSnapshot(_ context.Context, in *ec2.DeleteSnapshotInput, _
 	if c.failSnap[id] {
 		return nil, errors.New("InvalidSnapshot.InUse")
 	}
+	if err := c.write(); err != nil {
+		return nil, err
+	}
 	c.calls = append(c.calls, "delete-snapshot "+id)
+	c.snapshots = drop(c.snapshots, id)
 	return &ec2.DeleteSnapshotOutput{}, nil
 }
 func (c *cloud) DescribeVolumes(_ context.Context, in *ec2.DescribeVolumesInput, _ ...func(*ec2.Options)) (*ec2.DescribeVolumesOutput, error) {
@@ -149,7 +210,11 @@ func (c *cloud) DeleteVolume(_ context.Context, in *ec2.DeleteVolumeInput, _ ...
 	if c.failVolume[id] {
 		return nil, errors.New("VolumeInUse")
 	}
+	if err := c.write(); err != nil {
+		return nil, err
+	}
 	c.calls = append(c.calls, "delete-volume "+id)
+	c.volumes = drop(c.volumes, id)
 	return &ec2.DeleteVolumeOutput{}, nil
 }
 
@@ -162,7 +227,58 @@ func account() *cloud {
 			{id: "ami-work", tags: map[string]string{"Name": "work-image"}}},
 		volumes: []res{{id: "vol-left", tags: mine, state: "available"}, {id: "vol-games", tags: map[string]string{"Name": "ayis-games"}, state: "available"},
 			{id: "vol-theirs", tags: map[string]string{"Name": "ayis-scratch"}, state: "available"}, {id: "vol-busy", tags: mine, state: "in-use"}},
-		spot: map[string]string{"i-mine": "sir-9"},
+		snapshots: []res{{id: "snap-1", tags: mine}, {id: "snap-2", tags: mine}, {id: "snap-work", tags: map[string]string{"Name": "work"}}},
+		spot:      map[string]string{"i-mine": "sir-9"},
+	}
+}
+
+// Stopped after any one of its writes, a destroy run again finds what is left
+// and finishes: nothing of ayis's still bills. The snapshots matter most - an
+// image deregistered just before the stop leaves them with nothing pointing at
+// them, and the next destroy used to look for images only.
+func TestADestroyStoppedAtAnyStepIsFinishedByTheNext(t *testing.T) {
+	ctx := context.Background()
+	run := func(c *cloud) []string {
+		p, err := Read(ctx, c, "ayis", "ayis:host")
+		if err != nil {
+			t.Fatal(err)
+		}
+		fails, _ := Remover{C: c, Say: func(string) {}, Log: func(string) {}, Fail: func(string) {}}.Run(ctx, p)
+		return fails
+	}
+	for stop := 1; stop <= 7; stop++ {
+		c := account()
+		c.stopAt = stop
+		if fails := run(c); len(fails) == 0 {
+			t.Errorf("stopped at write %d: the stop is reported", stop)
+		}
+		c.stopAt = 0
+		if fails := run(c); len(fails) != 0 {
+			t.Errorf("stopped at write %d, run again: %v", stop, fails)
+		}
+		var left []string
+		for _, r := range c.instances {
+			if r.tags["Name"] == "ayis" && r.state != "terminated" {
+				left = append(left, r.id)
+			}
+		}
+		for _, r := range append(append(c.images, c.snapshots...), c.volumes...) {
+			if r.tags["ayis:host"] == "ayis" && r.state != "in-use" {
+				left = append(left, r.id)
+			}
+		}
+		if len(c.spot) != 0 {
+			left = append(left, "spot request")
+		}
+		if len(left) != 0 {
+			t.Errorf("stopped at write %d, run again: still billing %v (calls %v)", stop, left, c.calls)
+		}
+		// Nothing that is not ayis's was touched.
+		for _, id := range []string{"ami-work", "vol-games", "vol-theirs", "snap-work"} {
+			if strings.Contains(strings.Join(c.calls, " "), id) {
+				t.Errorf("stopped at write %d: touched %s", stop, id)
+			}
+		}
 	}
 }
 

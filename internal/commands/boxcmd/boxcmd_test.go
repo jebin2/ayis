@@ -127,6 +127,9 @@ func (f *fakeEC2) DescribeImages(_ context.Context, in *ec2.DescribeImagesInput,
 	}
 	return &ec2.DescribeImagesOutput{Images: out}, nil
 }
+func (f *fakeEC2) DescribeSnapshots(context.Context, *ec2.DescribeSnapshotsInput, ...func(*ec2.Options)) (*ec2.DescribeSnapshotsOutput, error) {
+	return &ec2.DescribeSnapshotsOutput{}, nil
+}
 func (f *fakeEC2) DescribeVolumes(_ context.Context, in *ec2.DescribeVolumesInput, _ ...func(*ec2.Options)) (*ec2.DescribeVolumesOutput, error) {
 	for _, id := range in.VolumeIds {
 		if id == f.gamesVol {

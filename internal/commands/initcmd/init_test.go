@@ -565,3 +565,37 @@ func TestAnOfflineNodeFromAnEarlierBoxIsSaid(t *testing.T) {
 		t.Errorf("%s", r.o)
 	}
 }
+
+// Stopped while it waits for the new box - Ctrl+C, a closed laptop - and before
+// it wrote the box down in .env, ayis init run again finds that box by its tag
+// and launches no second one: two billing machines is what a careless rerun of
+// a stopped build would make.
+func TestABuildStoppedAfterTheLaunchIsFinishedByTheNextWithNoSecondBox(t *testing.T) {
+	r := newRig(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	r.joined = func() bool {
+		if r.a.exists() {
+			cancel()
+		}
+		return false
+	}
+	if rc := r.i.Run(ctx); rc == 0 {
+		t.Fatalf("a stopped build is not a finished one\n%s", r.o)
+	}
+	if r.a.runs != 1 {
+		t.Fatalf("launches %d", r.a.runs)
+	}
+	// The worst case: the box was never written down.
+	_ = r.env.Unset("GAME_INSTANCE_ID")
+	r.joined = func() bool { return r.a.exists() }
+	r.o.Reset()
+	if rc := r.i.Run(context.Background()); rc != 0 {
+		t.Fatalf("rerun rc %d\n%s\n%s", rc, r.o, r.e)
+	}
+	if r.a.runs != 1 {
+		t.Errorf("the rerun launched a second box: %d launches", r.a.runs)
+	}
+	if !strings.Contains(r.o.String(), "reusing existing instance i-0new") {
+		t.Errorf("the rerun did not say it reused the box:\n%s", r.o)
+	}
+}

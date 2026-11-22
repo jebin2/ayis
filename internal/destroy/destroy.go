@@ -29,6 +29,7 @@ type EC2 interface {
 	DeleteSnapshot(context.Context, *ec2.DeleteSnapshotInput, ...func(*ec2.Options)) (*ec2.DeleteSnapshotOutput, error)
 	DescribeVolumes(context.Context, *ec2.DescribeVolumesInput, ...func(*ec2.Options)) (*ec2.DescribeVolumesOutput, error)
 	DeleteVolume(context.Context, *ec2.DeleteVolumeInput, ...func(*ec2.Options)) (*ec2.DeleteVolumeOutput, error)
+	DescribeSnapshots(context.Context, *ec2.DescribeSnapshotsInput, ...func(*ec2.Options)) (*ec2.DescribeSnapshotsOutput, error)
 }
 
 // Plan is what a destroy would remove, and what it leaves alone.
@@ -36,6 +37,10 @@ type Plan struct {
 	Instances []string
 	Images    []string
 	Volumes   []string
+	// Snapshots are ayis's snapshots that no image uses any more: what an
+	// earlier destroy left when it was stopped, or refused, between deregistering
+	// an image and deleting its snapshots. They bill with nothing pointing at them.
+	Snapshots []string
 	// Others are images and unattached disks that are not ayis's: said, never touched.
 	Others []string
 	// With --all, the free things too: the security group and the key pair.
@@ -81,6 +86,36 @@ func Read(ctx context.Context, c EC2, host, tagKey string) (Plan, error) {
 			add(&p.Images, seen, id)
 		}
 	}
+	// A snapshot of ours that no image uses: left behind. One that an image still
+	// uses goes with that image, after it is deregistered.
+	used := map[string]bool{}
+	images, err := c.DescribeImages(ctx, &ec2.DescribeImagesInput{Owners: []string{"self"}})
+	if err != nil {
+		return p, err
+	}
+	for _, im := range images.Images {
+		for _, m := range im.BlockDeviceMappings {
+			if m.Ebs != nil {
+				used[aws.ToString(m.Ebs.SnapshotId)] = true
+			}
+		}
+	}
+	var token *string
+	for {
+		o, err := c.DescribeSnapshots(ctx, &ec2.DescribeSnapshotsInput{OwnerIds: []string{"self"}, Filters: []ec2types.Filter{tagFilter(tagKey, host)}, NextToken: token})
+		if err != nil {
+			return p, err
+		}
+		for _, sn := range o.Snapshots {
+			if id := aws.ToString(sn.SnapshotId); !used[id] {
+				add(&p.Snapshots, seen, id)
+			}
+		}
+		if aws.ToString(o.NextToken) == "" {
+			break
+		}
+		token = o.NextToken
+	}
 	avail := ec2types.Filter{Name: aws.String("status"), Values: []string{"available"}}
 	for _, f := range []ec2types.Filter{tagFilter(tagKey, host), tagFilter("Name", host+"-games")} {
 		o, err := c.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{Filters: []ec2types.Filter{avail, f}})
@@ -97,11 +132,7 @@ func Read(ctx context.Context, c EC2, host, tagKey string) (Plan, error) {
 			add(&p.Volumes, seen, id)
 		}
 	}
-	all, err := c.DescribeImages(ctx, &ec2.DescribeImagesInput{Owners: []string{"self"}})
-	if err != nil {
-		return p, err
-	}
-	for _, im := range all.Images {
+	for _, im := range images.Images {
 		if id := aws.ToString(im.ImageId); !mine[id] {
 			p.Others = append(p.Others, id)
 		}
@@ -157,6 +188,9 @@ func DescribeAll(p Plan, host string) string {
 	fmt.Fprintf(&b, "  instances       %s\n", none(p.Instances))
 	fmt.Fprintf(&b, "  images          %s\n", none(p.Images))
 	fmt.Fprintf(&b, "  volumes         %s\n", none(p.Volumes))
+	if len(p.Snapshots) > 0 {
+		fmt.Fprintf(&b, "  snapshots       %s  (left by an earlier destroy, no image uses them)\n", none(p.Snapshots))
+	}
 	fmt.Fprintf(&b, "  security group  %s\n", orNone(p.SecurityGroup))
 	fmt.Fprintf(&b, "  key pair        %s  (and ~/.ssh/%s.pem)\n", orNone(p.KeyPair), host)
 	fmt.Fprintf(&b, "  tailnet nodes   %s, %s-N\n", host, host)
@@ -184,6 +218,9 @@ func Describe(p Plan, host string, keepDays int, now time.Time) string {
 	fmt.Fprintf(&b, "  instances       %s\n", none(p.Instances))
 	fmt.Fprintf(&b, "  images          %s\n", none(p.Images))
 	fmt.Fprintf(&b, "  volumes         %s\n", none(p.Volumes))
+	if len(p.Snapshots) > 0 {
+		fmt.Fprintf(&b, "  snapshots       %s  (left by an earlier destroy, no image uses them)\n", none(p.Snapshots))
+	}
 	b.WriteString("\nKept, because they are free and ayis init reuses them:\n")
 	fmt.Fprintf(&b, "  security group  %s-sg\n", host)
 	fmt.Fprintf(&b, "  key pair        %s, with ~/.ssh/%s.pem\n", host, host)
@@ -303,6 +340,12 @@ func (r Remover) Run(ctx context.Context, p Plan) (failures []string, instancesG
 			if _, err := r.C.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{SnapshotId: aws.String(s)}); err != nil {
 				fail(fmt.Sprintf("could not delete snapshot %s - it still bills", s))
 			}
+		}
+	}
+	for _, sn := range p.Snapshots {
+		r.Say("deleting the leftover snapshot " + sn)
+		if _, err := r.C.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{SnapshotId: aws.String(sn)}); err != nil {
+			fail(fmt.Sprintf("could not delete snapshot %s - it still bills", sn))
 		}
 	}
 	// A disk of the box's left detached still bills. Only one carrying the box's

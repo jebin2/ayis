@@ -256,6 +256,16 @@ n=$(grep -c 'cp .*appmanifest_730.acf s3' "$T/s5.log" 2>/dev/null) || true
 check "never uploaded the manifest"  "${n:-0}" "0"
 mkstub
 
+echo "10b. the next push after one that was cut off finishes it"
+# P5: a push stopped part way (here, every sync failed) is resumable - run
+# again, it syncs the game and only then writes its manifest.
+reset
+out=$(run push)
+contains "syncs the game again"      "$(cat "$T/s5.log")" "sync"
+n=$(grep -c 'cp .*appmanifest_730.acf s3' "$T/s5.log" 2>/dev/null) || true
+check "and now uploads the manifest" "$(( ${n:-0} > 0 ))" "1"
+lacks "says nothing is wrong"        "$out" "is NOT archived"
+
 echo "11. a restore that lands short is reported, not marked as done"
 # The real failure: 73 GB of a 158.7 GB game arrived, the sync error was
 # swallowed by `|| true`, the marker was set anyway, and Steam discovered it -
