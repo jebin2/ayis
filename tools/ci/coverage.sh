@@ -15,8 +15,8 @@ pkgs=$(go list ./... | grep -v /node_modules/)
 go test -coverprofile="$out" $pkgs > "$out.pkgs"
 total=$(go tool cover -func="$out" | awk '/^total:/ {sub("%","",$3); print $3}')
 # "ok <pkg> <time> coverage: N%" for a tested package, "<pkg> coverage: N%" otherwise.
-weakest=$(awk '/coverage:/ {pkg = ($1 == "ok") ? $2 : $1
-  for (i=1;i<=NF;i++) if ($i == "coverage:") {p=$(i+1); sub("%","",p); print p, pkg}}' "$out.pkgs" | sort -n | head -10)
+weakest=$(grep -v "no statements" "$out.pkgs" | awk '/coverage:/ {pkg = ($1 == "ok") ? $2 : $1
+  for (i=1;i<=NF;i++) if ($i == "coverage:") {p=$(i+1); sub("%","",p); print p, pkg}}' | sort -n | head -10)
 report() {
   echo "### Go coverage: ${total}% (floor ${FLOOR}%)"
   echo

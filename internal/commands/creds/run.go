@@ -85,7 +85,7 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 
 func setter(env *config.Env, out *output.Out) Setter {
 	home, _ := os.UserHomeDir()
-	return Setter{Out: out, Ask: ask.New(out, os.Getenv("AYIS_YES") == "1"), Env: env, Verify: VerifyKey, Home: home, Getenv: os.Getenv,
+	return Setter{Out: out, Ask: ask.FromEnv(out), Env: env, Verify: VerifyKey, Home: home, Getenv: os.Getenv,
 		TS: func(token string) tskey.Client { return tskey.Client{Token: token} }}
 }
 

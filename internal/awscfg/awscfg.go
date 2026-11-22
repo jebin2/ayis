@@ -26,8 +26,12 @@ func New(ctx context.Context, region string) (aws.Config, error) {
 	if region != "" {
 		opts = append(opts, config.WithRegion(region))
 	}
-	if u := os.Getenv("AYIS_AWS_ENDPOINT"); u != "" {
+	if u := Endpoint(); u != "" {
 		opts = append(opts, config.WithBaseEndpoint(u))
 	}
 	return config.LoadDefaultConfig(ctx, opts...)
 }
+
+// Endpoint is AYIS_AWS_ENDPOINT: every AWS call sent to one address instead of
+// AWS, for tests against a local fake. "" in normal use.
+func Endpoint() string { return os.Getenv("AYIS_AWS_ENDPOINT") }

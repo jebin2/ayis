@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -45,7 +44,7 @@ func NewChanger(ctx context.Context, r *Reader, env *config.Env, out *output.Out
 		return nil, err
 	}
 	m := library.Mutator{Library: r.Lib, W: store, Marks: library.SSMMarks{Client: ssm.NewFromConfig(cfg)}}
-	return &Changer{M: m, Ask: ask.New(out, os.Getenv("AYIS_YES") == "1"), Out: out, Env: env, Price: r.Prices,
+	return &Changer{M: m, Ask: ask.FromEnv(out), Out: out, Env: env, Price: r.Prices,
 		Reinstall: func(ctx context.Context) int { return watchdog.Reinstall(ctx, env, out) },
 		Set:       func(k, v string) error { return configcmd.Set(env, k, v, out, accountcfg.Sharer(ctx, env)) }}, nil
 }

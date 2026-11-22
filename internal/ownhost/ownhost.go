@@ -258,7 +258,7 @@ func (c Conn) InstallKey(ctx context.Context, target, password string) int {
 func (c Conn) RemoveKey(ctx context.Context, target string) error {
 	b, err := os.ReadFile(c.Key + ".pub")
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // no key of ours here: nothing to take off the machine
 	}
 	pub := strings.TrimSpace(string(b))
 	_, err = c.Raw(ctx, target, `sh -c 'f="$HOME/.ssh/authorized_keys"; [ -f "$f" ] || exit 0; grep -vxF "$1" "$f" > "$f.ayis"; cat "$f.ayis" > "$f"; rm -f "$f.ayis"' _ '`+pub+`'`, nil)

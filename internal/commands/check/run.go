@@ -25,7 +25,7 @@ import (
 func New(env *config.Env, fix bool, out *output.Out) *Checker {
 	home, _ := os.UserHomeDir()
 	l := laptop.New(local.Exec{})
-	a := ask.New(out, os.Getenv("AYIS_YES") == "1")
+	a := ask.FromEnv(out)
 	say := func(kind, text string) {
 		if kind == "log" {
 			out.Log(text)

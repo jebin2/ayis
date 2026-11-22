@@ -148,6 +148,12 @@ func TestAnUnreadableIndexIsAnErrorNotAnEmptyArchive(t *testing.T) {
 	if apps, err := lib(f).Index(context.Background(), here, "ap-south-1"); err != nil || len(apps) != 0 {
 		t.Errorf("%v %v", apps, err)
 	}
+	// But an index that is there and unreadable is not an empty archive.
+	f = world()
+	f.objects[here]["steam/index.json"] = obj{data: []byte("{not json")}
+	if apps, err := lib(f).Index(context.Background(), here, "ap-south-1"); err == nil || apps != nil || !strings.Contains(err.Error(), "unreadable") {
+		t.Errorf("a corrupt index read as %v %v", apps, err)
+	}
 }
 
 func TestOrphansAreWhatTheIndexDoesNotKnow(t *testing.T) {

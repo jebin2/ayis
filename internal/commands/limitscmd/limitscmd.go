@@ -234,6 +234,12 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 	if sub != "status" {
 		return 0
 	}
+	show(st, out)
+	return 0
+}
+
+// show is the human view of where the limits stand.
+func show(st Status, out *output.Out) {
 	out.Say("hard limits")
 	switch {
 	case st.MonthError != "":
@@ -269,5 +275,4 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 	default:
 		out.LogAs("ok", "budget block: off")
 	}
-	return 0
 }

@@ -50,7 +50,7 @@ func New(ctx context.Context, get config.Lookup, env *config.Env, out *output.Ou
 	if node == "" {
 		node = host
 	}
-	a := ask.New(out, os.Getenv("AYIS_YES") == "1")
+	a := ask.FromEnv(out)
 	sun := sunshine.Client{}
 	d := Deps{
 		Box: box.Box{EC2: client, ID: env.Get("GAME_INSTANCE_ID"), Host: host, Node: node, Key: filepath.Join(home, ".ssh", host+".pem"), R: r,

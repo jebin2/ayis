@@ -130,6 +130,32 @@ after that grows the second disk. `ayis disk --json` says which of the two
 will happen (`second`), the room left and the most that can be added. Games already on the NVMe stay
 there. Push, check and `ayis games` look in every library on the box.
 
+## Layers
+
+The Go code has four layers, and `internal/arch` holds them as tests the build runs:
+
+| Layer | What it is | May import |
+|---|---|---|
+| `cmd/ayis` | the process: global flags, then one function per command, looked up by the names and aliases in `internal/contract` | anything |
+| `internal/commands/*` | one package per command: its flags, its output, its flow | building blocks; another command only along an edge listed in `internal/arch` |
+| `internal/*` (the building blocks) | boxes, limits, the archive, provisioning, pricing, settings | other building blocks - **never a command** |
+| `internal/awscfg` | the only place an AWS client is configured (region, test endpoint, no instance metadata) | the AWS SDK |
+
+The rules, each a test in `internal/arch/arch_test.go`:
+
+- A building block never imports a command.
+- A command imports another command only along today's listed edges; a new one fails the build
+  until the shared part moves into a building block, or the edge is added with its reason.
+- Only `internal/awscfg` configures AWS clients.
+- The test fakes (`internal/testfixture`) are imported by tests only.
+- Settings come from `config.Env`; a direct read of the environment is allowed only for the
+  process facts listed with their reasons (`AYIS_YES`, `DISPLAY`, test endpoints).
+- No source file is over 800 lines.
+
+Each package declares the small AWS client interface it needs and takes it as a parameter, so its
+tests pass a fake; that is why the SDK's service packages appear across the building blocks.
+Finding a host's machines is one function, `ec2find.Instances`.
+
 ## Flow 1 - `ayis init`: build a box
 
 ```mermaid

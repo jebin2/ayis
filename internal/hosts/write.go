@@ -30,7 +30,7 @@ func (s Store) Set(name string, kv ...string) error {
 // Forget takes a machine out of the file. A file that is not there stays not there.
 func (s Store) Forget(name string) error {
 	if _, err := os.Stat(s.Path); err != nil {
-		return nil
+		return nil //nolint:nilerr // no file: nothing to forget
 	}
 	return s.write(func(d map[string]Record) { delete(d, name) })
 }

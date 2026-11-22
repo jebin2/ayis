@@ -83,7 +83,7 @@ func New(get config.Lookup, env *config.Env, out *output.Out) Deps {
 			}
 			return "laptop"
 		}},
-		Ask: ask.New(out, os.Getenv("AYIS_YES") == "1"), Sun: sunshine.Client{}, Runner: r,
+		Ask: ask.FromEnv(out), Sun: sunshine.Client{}, Runner: r,
 		AWSHost: env.Host(), Moonlight: r.Has("moonlight")}
 	return d.withRuntime(get, env, out)
 }

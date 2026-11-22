@@ -16,9 +16,9 @@ linters:
     - nilerr
   settings:
     gocyclo:
-      # Today's worst is cmd/ayis run() at 113; P2 replaces it with a table.
-      # Lowered as each offender is split - the goal is 40.
-      min-complexity: 115
+      # cmd/ayis run() was 113 until P2 made it a table; today's worst is
+      # inventory.Read at 62. Lowered as each offender is split - the goal is 40.
+      min-complexity: 65
     dupl:
       threshold: 200
   exclusions:

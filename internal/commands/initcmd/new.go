@@ -95,7 +95,7 @@ func New(ctx context.Context, get config.Lookup, env *config.Env, out *output.Ou
 		ChooseGames: func(ctx context.Context) {
 			avail, reserve := availableGB(ctx, ec, env, cache)
 			Chooser{Lib: gameLib(), Env: env, Out: out,
-				Ask: ask.New(out, os.Getenv("AYIS_YES") == "1"), AvailGB: avail, ReserveGB: reserve,
+				Ask: ask.FromEnv(out), AvailGB: avail, ReserveGB: reserve,
 				INRPerGBHour: diskINRPerGBHour(ctx, popts, region)}.Choose(ctx)
 		},
 		ExtraDisk: func(ctx context.Context, apps string) GameDisk {

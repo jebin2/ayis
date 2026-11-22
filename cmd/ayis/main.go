@@ -11,31 +11,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
-	"strconv"
 	"syscall"
 
-	"github.com/jebin2/ayis/internal/commands/awscmd"
-	"github.com/jebin2/ayis/internal/commands/boxcmd"
-	"github.com/jebin2/ayis/internal/commands/check"
-	"github.com/jebin2/ayis/internal/commands/configcmd"
-	"github.com/jebin2/ayis/internal/commands/cost"
-	"github.com/jebin2/ayis/internal/commands/creds"
-	"github.com/jebin2/ayis/internal/commands/deps"
-	"github.com/jebin2/ayis/internal/commands/games"
-	"github.com/jebin2/ayis/internal/commands/hostcmd"
-	"github.com/jebin2/ayis/internal/commands/initcmd"
-	"github.com/jebin2/ayis/internal/commands/librarycmd"
-	"github.com/jebin2/ayis/internal/commands/limitscmd"
-	"github.com/jebin2/ayis/internal/commands/machines"
-	"github.com/jebin2/ayis/internal/commands/notify"
-	"github.com/jebin2/ayis/internal/commands/quota"
-	"github.com/jebin2/ayis/internal/commands/regions"
-	"github.com/jebin2/ayis/internal/commands/remote"
-	"github.com/jebin2/ayis/internal/commands/snapshot"
-	"github.com/jebin2/ayis/internal/commands/status"
-	"github.com/jebin2/ayis/internal/commands/sweep"
-	"github.com/jebin2/ayis/internal/commands/watchdog"
-	"github.com/jebin2/ayis/internal/commands/watcher"
 	"github.com/jebin2/ayis/internal/config"
 	"github.com/jebin2/ayis/internal/contract"
 	"github.com/jebin2/ayis/internal/output"
@@ -69,8 +46,9 @@ func buildVersion() string {
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	os.Exit(run(ctx, os.Args[1:], os.LookupEnv, os.Stdout, os.Stderr))
+	rc := run(ctx, os.Args[1:], os.LookupEnv, os.Stdout, os.Stderr)
+	stop() // os.Exit skips deferred calls
+	os.Exit(rc)
 }
 
 // repoDir is where ayis's files live: AYIS_REPO, else beside the binary.
@@ -150,269 +128,16 @@ func run(ctx context.Context, args []string, lookup config.Lookup, stdout, stder
 			watchFlag = true
 		}
 	}
-	if syncsAccount[cmd] {
+	if syncsAccount[canonical(cmd)] {
 		syncAccount(ctx, config.Load(get, repoDir(get)), out)
 	}
-	switch cmd {
-	case "help":
-		fmt.Fprintln(stdout, "ayis - All Yours, Instantly Streamed")
-		fmt.Fprintln(stdout)
-		for _, c := range contract.Registry {
-			fmt.Fprintf(stdout, "  ayis %-10s %s\n", c.Path[0], c.Summary)
-		}
-		return 0
-	case "notify":
-		return notify.Send(ctx, nil, config.Load(get, repoDir(get)), out)
-	case "games":
-		return games.Run(ctx, config.Load(get, repoDir(get)), args, out)
-	case "aws":
-		return awscmd.Run(ctx, config.Load(get, repoDir(get)), args, jsonFlag, out)
-	case "snapshot":
-		sub := "create"
-		if len(args) > 0 {
-			sub = args[0]
-		}
-		switch sub {
-		case "--list", "list":
-			return snapshot.Run(ctx, config.Load(get, repoDir(get)), args, jsonFlag, out)
-		case "create", "", "--no-wait":
-			d, _, err := boxcmd.New(ctx, get, config.Load(get, repoDir(get)), out)
-			if err != nil {
-				out.Die(err.Error())
-				return 1
-			}
-			wait := true
-			for _, a := range args {
-				if a == "--no-wait" {
-					wait = false
-				}
-			}
-			return d.SnapshotCreateWith(ctx, wait)
-		case "--delete", "delete":
-			d, c, err := boxcmd.New(ctx, get, config.Load(get, repoDir(get)), out)
-			if err != nil {
-				out.Die(err.Error())
-				return 1
-			}
-			id := ""
-			if len(args) > 1 {
-				id = args[1]
-			}
-			return d.SnapshotDelete(ctx, id, c)
-		}
-		out.Die("usage: ayis snapshot [create|--list|--delete <id>]")
+	cl := &call{ctx: ctx, get: get, args: args, json: jsonFlag, watch: watchFlag, out: out, stdout: stdout}
+	h, ok := handlers[canonical(cmd)]
+	if !ok {
+		out.Die(fmt.Sprintf("unknown command '%s' (see: ayis help)", cmd))
 		return 1
-	case "init":
-		env := config.Load(get, repoDir(get))
-		i, err := initcmd.New(ctx, get, env, out)
-		if err != nil {
-			out.Die(err.Error())
-			return 1
-		}
-		return i.Run(ctx)
-	case "open", "up":
-		env := config.Load(get, repoDir(get))
-		if len(args) > 0 && args[0] == "--on" {
-			name := ""
-			if len(args) > 1 {
-				name = args[1]
-			}
-			return hostcmd.Run(ctx, hostcmd.New(get, env, out), []string{"open", name}, false, out)
-		}
-		d, c, err := boxcmd.New(ctx, get, env, out)
-		if err != nil {
-			out.Die(err.Error())
-			return 1
-		}
-		// --extra-gb N --extra-apps 1,2: make a games disk and bring those games
-		// onto it (what Play asks after the disk was removed).
-		for i := 0; i+1 < len(args); i++ {
-			switch args[i] {
-			case "--extra-gb":
-				d.ExtraGB, _ = strconv.Atoi(args[i+1])
-			case "--extra-apps":
-				d.ExtraApps = args[i+1]
-			case "--games":
-				d.Games = args[i+1]
-			}
-		}
-		if d.ExtraGB > 0 {
-			d.DiskAWS = c
-		}
-		return d.Open(ctx)
-	case "stop", "down":
-		env := config.Load(get, repoDir(get))
-		d, c, err := boxcmd.New(ctx, get, env, out)
-		if err != nil {
-			out.Die(err.Error())
-			return 1
-		}
-		d.WithDestroy(env, c)
-		return d.Stop(ctx, args)
-	case "destroy":
-		env := config.Load(get, repoDir(get))
-		d, c, err := boxcmd.New(ctx, get, env, out)
-		if err != nil {
-			out.Die(err.Error())
-			return 1
-		}
-		x, err := boxcmd.NewDestroyDeps(ctx, env, c, out)
-		if err != nil {
-			out.Die(err.Error())
-			return 1
-		}
-		return d.DestroyBox(ctx, x, args)
-	case "clean":
-		d, _, err := boxcmd.New(ctx, get, config.Load(get, repoDir(get)), out)
-		if err != nil {
-			out.Die(err.Error())
-			return 1
-		}
-		return d.Clean(ctx)
-	case "disk":
-		d, c, err := boxcmd.New(ctx, get, config.Load(get, repoDir(get)), out)
-		if err != nil {
-			out.Die(err.Error())
-			return 1
-		}
-		if len(args) > 0 && args[0] == "remove" || jsonFlag {
-			if x, xerr := boxcmd.NewDestroyDeps(ctx, config.Load(get, repoDir(get)), c, out); xerr == nil {
-				d.Pushed = x.PushedFunc()
-			}
-		}
-		if len(args) > 0 && args[0] == "remove" {
-			// --unsaved-ok: the app's Stop machine has shown what is on the disk and
-			// not saved, and the person chose to lose it with the disk.
-			for _, a := range args[1:] {
-				if a == "--unsaved-ok" {
-					d.UnsavedOK = true
-				}
-			}
-			return d.RemoveDisk(ctx, c)
-		}
-		if len(args) > 0 && args[0] == "add" {
-			gb := 0
-			if len(args) > 1 {
-				gb, _ = strconv.Atoi(args[1])
-			}
-			return d.AddDisk(ctx, c, gb)
-		}
-		return d.Disk(ctx, c, jsonFlag)
-	case "clip":
-		d, _, err := boxcmd.New(ctx, get, config.Load(get, repoDir(get)), out)
-		if err != nil {
-			out.Die(err.Error())
-			return 1
-		}
-		switch {
-		case len(args) > 0 && args[0] == "send":
-			return d.ClipSend(ctx)
-		case len(args) > 0 && args[0] == "get":
-			return d.ClipGet(ctx)
-		}
-		out.Die("usage: ayis clip send | get")
-		return 1
-	case "pair":
-		d, _, err := boxcmd.New(ctx, get, config.Load(get, repoDir(get)), out)
-		if err != nil {
-			out.Die(err.Error())
-			return 1
-		}
-		return d.PairMoonlight(ctx)
-	case "host":
-		return hostcmd.Run(ctx, hostcmd.New(get, config.Load(get, repoDir(get)), out), args, jsonFlag, out)
-	case "library", "lib":
-		if sub := firstArg(args, "status"); onBoxLibrary(sub, args) {
-			d, _, err := boxcmd.New(ctx, get, config.Load(get, repoDir(get)), out)
-			if err != nil {
-				out.Die(err.Error())
-				return 1
-			}
-			rest := []string{}
-			if len(args) > 1 {
-				rest = args[1:]
-			}
-			if sub == "account" || sub == "login" {
-				rest = accountRest(args[1:])
-				sub = "account"
-			}
-			return d.Library(ctx, sub, rest)
-		}
-		return librarycmd.Run(ctx, config.Load(get, repoDir(get)), get, args, jsonFlag, out)
-	case "regions":
-		return regions.Run(ctx, config.Load(get, repoDir(get)), args, jsonFlag, out)
-	case "limits":
-		return limitscmd.Run(ctx, config.Load(get, repoDir(get)), args, jsonFlag, out)
-	case "quota":
-		return quota.Run(ctx, config.Load(get, repoDir(get)), get, args, jsonFlag, out)
-	case "sweep", "regions-sweep":
-		return sweep.Run(ctx, config.Load(get, repoDir(get)), get, args, jsonFlag, out)
-	case "machines", "types":
-		// `ayis machines [region] --sweep` is the sweep, whatever region was named.
-		for i, a := range args {
-			if a == "--sweep" || a == "sweep" {
-				rest := append(append([]string{}, args[:i]...), args[i+1:]...)
-				if len(rest) > 0 && machines.IsRegion(rest[0]) {
-					rest = rest[1:]
-				}
-				return sweep.Run(ctx, config.Load(get, repoDir(get)), get, rest, jsonFlag, out)
-			}
-		}
-		return machines.Run(ctx, config.Load(get, repoDir(get)), get, args, jsonFlag, out)
-	case "check":
-		return check.Run(ctx, config.Load(get, repoDir(get)), args, out)
-	case "deps", "dependencies":
-		return deps.Main(ctx, args, jsonFlag, out)
-	case "creds", "credentials":
-		return creds.Run(ctx, config.Load(get, repoDir(get)), args, jsonFlag, out)
-	case "config":
-		cfgEnv := config.Load(get, repoDir(get))
-		rc := configcmd.Run(cfgEnv, args, jsonFlag, out, shareSetting(ctx, cfgEnv))
-		// A hard limit is enforced by the cloud watchdog, which carries it: a new
-		// figure takes effect now, not at the next build. Only an installed
-		// watchdog is redeployed - with none, the next build installs it with this.
-		if rc == 0 && len(args) >= 2 && args[0] == "set" && (args[1] == "GAME_MAX_HOURS_MONTH" || args[1] == "GAME_MAX_SESSION_HOURS") {
-			if r, err := watchdog.NewReader(ctx, config.Load(get, repoDir(get))); err == nil && r.Current(ctx).Installed {
-				return watchdog.Reinstall(ctx, config.Load(get, repoDir(get)), out)
-			}
-		}
-		return rc
-	case "ping":
-		return remote.RunPing(ctx, config.Load(get, repoDir(get)), args, jsonFlag, watchFlag, out)
-	case "log", "logs":
-		return remote.RunLog(ctx, config.Load(get, repoDir(get)), args, out)
-	case "ssh":
-		return remote.RunSSH(ctx, config.Load(get, repoDir(get)), args, out)
-	case "watcher", "guards":
-		opts, err := watcher.ParseArgs(args)
-		if err != nil {
-			out.Die(err.Error())
-			return 1
-		}
-		return watcher.Run(ctx, config.Load(get, repoDir(get)), opts, out)
-	case "watchdog":
-		watch := false
-		for _, a := range args {
-			watch = watch || a == "--watch"
-		}
-		return watchdog.Run(ctx, config.Load(get, repoDir(get)), args, watch, out)
-	case "status":
-		opts, err := status.ParseArgs(args)
-		if err != nil {
-			out.Die(err.Error())
-			return 1
-		}
-		return status.Run(ctx, config.Load(get, repoDir(get)), get, opts, out)
-	case "cost":
-		opts, err := cost.ParseArgs(args)
-		if err != nil {
-			out.Die(err.Error())
-			return 1
-		}
-		return cost.Run(ctx, config.Load(get, repoDir(get)), get, opts, out)
 	}
-	out.Die(fmt.Sprintf("unknown command '%s' (see: ayis help)", cmd))
-	return 1
+	return h(cl)
 }
 
 func firstArg(args []string, def string) string {
@@ -428,13 +153,9 @@ func onBoxLibrary(sub string, args []string) bool {
 	case "status", "push", "sync", "pull", "restore", "check":
 		return true
 	case "account", "login":
-		for _, a := range accountRest(args[1:]) {
-			switch a {
-			case "push", "pull", "restore":
-				return true
-			}
-			return false
-		}
+		// The word after any flags decides: account push/pull/restore ask the box.
+		rest := accountRest(args[1:])
+		return len(rest) > 0 && (rest[0] == "push" || rest[0] == "pull" || rest[0] == "restore")
 	}
 	return false
 }

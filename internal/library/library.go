@@ -82,9 +82,11 @@ func (l Library) IndexAt(ctx context.Context, b, region string) (apps []App, buc
 			return nil, false, fmt.Errorf("%s", r)
 		}
 	}
+	// An index that is there but unreadable is NOT an empty archive: saying so
+	// would show saved games as gone, and let a caller act on that.
 	var ix index
-	if json.Unmarshal(body, &ix) != nil {
-		return []App{}, false, nil
+	if err := json.Unmarshal(body, &ix); err != nil {
+		return nil, false, fmt.Errorf("the archive's index (s3://%s/steam/index.json) is unreadable: %w", b, err)
 	}
 	return ix.Apps, false, nil
 }
@@ -107,11 +109,11 @@ func (l Library) PushedAt(ctx context.Context, b, region string) (at time.Time, 
 		OK bool   `json:"ok"`
 	}
 	if json.Unmarshal(body, &m) != nil || !m.OK {
-		return time.Time{}, false, nil
+		return time.Time{}, false, nil //nolint:nilerr // an unreadable marker is no proof of a push: the cautious answer
 	}
 	t, perr := time.Parse(time.RFC3339, m.At)
 	if perr != nil {
-		return time.Time{}, false, nil
+		return time.Time{}, false, nil //nolint:nilerr // the same: no proof of a push
 	}
 	return t, true, nil
 }

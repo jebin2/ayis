@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/jebin2/ayis/internal/ask"
+	"github.com/jebin2/ayis/internal/awscfg"
 	"github.com/jebin2/ayis/internal/config"
 	"github.com/jebin2/ayis/internal/output"
 	"github.com/jebin2/ayis/internal/tskey"
@@ -42,7 +43,7 @@ func VerifyKey(ctx context.Context, keyID, secret, region string) (string, error
 		region = "us-east-1"
 	}
 	opts := sts.Options{Region: region, Credentials: credentials.NewStaticCredentialsProvider(keyID, secret, ""), AppID: "ayis"}
-	if u := os.Getenv("AYIS_AWS_ENDPOINT"); u != "" {
+	if u := awscfg.Endpoint(); u != "" {
 		opts.BaseEndpoint = aws.String(u)
 	}
 	r, err := sts.New(opts).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})

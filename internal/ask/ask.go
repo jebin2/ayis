@@ -39,6 +39,11 @@ func New(out *output.Out, yes bool) *Asker {
 	return &Asker{Out: out, In: bufio.NewReader(os.Stdin), Prompts: os.Stderr, TTY: term.IsTerminal(int(os.Stdin.Fd())), Yes: yes}
 }
 
+// FromEnv is New with AYIS_YES=1 answering yes to every question - how the
+// app and scripts run a command that would otherwise ask. The one place that
+// variable is read.
+func FromEnv(out *output.Out) *Asker { return New(out, os.Getenv("AYIS_YES") == "1") }
+
 // CanAsk: is there anyone to ask? A terminal, or the app. This is NOT the same
 // question as "is there a terminal", which is what sudo needs.
 func (a *Asker) CanAsk() bool { return a.TTY || a.Out.JSON }

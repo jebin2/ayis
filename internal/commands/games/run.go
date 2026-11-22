@@ -3,7 +3,6 @@ package games
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -102,7 +101,7 @@ func runVolume(ctx context.Context, env *config.Env, args []string, out *output.
 		return 1
 	}
 	if sub == "--delete" || sub == "delete" {
-		return DeleteVolume(ctx, ec2.NewFromConfig(cfg), v, ask.New(out, os.Getenv("AYIS_YES") == "1"), out)
+		return DeleteVolume(ctx, ec2.NewFromConfig(cfg), v, ask.FromEnv(out), out)
 	}
 	us, _ := awscfg.New(ctx, "us-east-1")
 	rates := pricing.Load(ctx, pricing.Options{Getenv: env.Get,

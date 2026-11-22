@@ -2,7 +2,6 @@ package awscmd
 
 import (
 	"context"
-	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -68,7 +67,7 @@ func newDisconnector(ctx context.Context, env *config.Env, inv inventory.Invento
 		return nil, err
 	}
 	get := config.OSLookup
-	d := &Disconnector{Out: out, Ask: ask.New(out, os.Getenv("AYIS_YES") == "1"), Env: env,
+	d := &Disconnector{Out: out, Ask: ask.FromEnv(out), Env: env,
 		Inventory: func(ctx context.Context) inventory.Result { return inv.Read(ctx) }}
 	// Everything the current region has goes through destroy --all --force, as the
 	// Bash ran cmd_destroy --all --force; one failure there must not stop the rest.

@@ -173,6 +173,30 @@ the packages that hold them are reworked anyway.
 **Exit:** import-rule test passes; `grep DescribeInstances(` finds only the adapter; no Go file
 over 1,500 lines; coverage ≥ 70%.
 
+**Done (branch `p2-boundaries`), with three corrections to the plan above:**
+
+- *Measured first, and two items were wrong.* No Go file is over 683 lines - `boxcmd`'s 5,800 lines
+  are already one file per verb, so splitting it into packages would only move code. And the AWS SDK
+  in 33 packages is deliberate: each declares the small client interface it needs and tests pass a
+  fake. Moving every call behind adapters would be churn for no gain. What *was* duplicated is
+  fixed: finding a host's machines was written seven times with different state lists, mostly
+  reading one page - now `internal/ec2find`, every page (destroy's plan could have missed a
+  machine past page one).
+- *Enforced:* `internal/arch` tests that building blocks never import commands, that no new
+  command-to-command coupling appears unlisted (21 today), that only `awscfg` configures AWS, that
+  fakes stay in tests, that settings come from `config` (six process facts listed with reasons),
+  and that no file passes 800 lines. Each rule was broken on purpose once to prove it fires.
+- `cmd/ayis`: the 445-line `switch` (complexity 113, 0% covered) is one function per command in a
+  table built from the contract; a test fails if the contract and the table disagree. Lint
+  ceiling lowered from 115 to 65.
+- `ask.FromEnv` replaces seven copies of `ask.New(out, os.Getenv("AYIS_YES") == "1")`.
+- A bug found on the way: an archive index that exists but cannot be parsed read as an empty
+  archive, against its own comment; it is now an error.
+- Coverage 65.2% → 65.9%; `cmd/ayis` 0 → 22%, `limitscmd` 3.6 → 29%. The 70% target is **not**
+  met: the rest of the weak packages (`box` 3.6%, `laptop` 9.2%, `commands/watchdog` 16%) run SSH
+  and real processes, and need a fake-process seam first. That moves to P5, where those same
+  paths get timeouts and fault injection.
+
 ### P3 - The desktop app as modules (L)
 
 - Split `app.js` into ES modules, no framework and no bundler (Electron loads
