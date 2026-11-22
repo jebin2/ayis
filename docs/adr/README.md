@@ -7,5 +7,6 @@ changed mind is a new record that **supersedes** the old one.
 | # | Decision | Status |
 |---|---|---|
 | [0001](0001-record-decisions.md) | Record decisions as ADRs | Accepted |
+| [0002](0002-account-settings-live-in-the-account.md) | Account settings live in the account | Accepted |
 
 New record: copy [template.md](template.md) to the next number, fill it in, add a row above.

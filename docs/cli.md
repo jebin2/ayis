@@ -13,6 +13,10 @@ curl, python3), signs in to Tailscale and AWS, and asks for any missing setting.
 installing anything.
 
 Settings live in `.env` in the repository, or `~/.config/ayis/.env` for the installed app.
+Settings that describe the AWS account - the budget, hard limits, alerts, watchdog timings and
+the machine to build - are also kept in the account (SSM, free), so every computer that drives it
+uses the same values; `.env` holds a copy that each command brings up to date
+([ADR-0002](adr/0002-account-settings-live-in-the-account.md)).
 
 ## Play on your own server
 

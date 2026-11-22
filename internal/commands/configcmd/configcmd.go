@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jebin2/ayis/internal/accountcfg"
 	"github.com/jebin2/ayis/internal/config"
 	"github.com/jebin2/ayis/internal/output"
 )
@@ -100,14 +101,28 @@ func Get(env *config.Env, key string) (string, error) {
 	return env.Get(key), nil
 }
 
+// Share tells the AWS account about an account setting (config.IsAccount), so
+// every computer that drives it uses the same value. Nil: this computer only.
+type Share func(key, value string) error
+
 // Set validates, writes, and says what it did - and when it applies. A secret
-// is never echoed.
-func Set(env *config.Env, key, value string, out *output.Out) error {
+// is never echoed. An account setting goes to the account first; when the
+// account cannot be reached it is saved here and shared at the next sync.
+func Set(env *config.Env, key, value string, out *output.Out, share Share) error {
 	if why := config.Validate(key, value); why != "" {
 		return fmt.Errorf("%s: %s", key, why)
 	}
+	var shareErr error
+	if config.IsAccount(key) && share != nil {
+		shareErr = share(key, value)
+	}
 	if err := env.Set(key, value); err != nil {
 		return fmt.Errorf("could not write .env")
+	}
+	if config.IsAccount(key) && (share == nil || shareErr != nil) {
+		if err := accountcfg.MarkPending(env, key); err != nil {
+			return fmt.Errorf("could not write .env")
+		}
 	}
 	s, _ := config.Find(key)
 	shown := value
@@ -118,6 +133,12 @@ func Set(env *config.Env, key, value string, out *output.Out) error {
 		shown = "cleared"
 	}
 	out.LogAs("ok", fmt.Sprintf("%s = %s", key, shown))
+	switch {
+	case config.IsAccount(key) && share != nil && shareErr == nil:
+		out.LogAs("info", "shared with your AWS account: every computer that uses it now has this")
+	case config.IsAccount(key):
+		out.LogAs("warn", "saved on this computer only for now - AWS could not be reached; it is shared the next time ayis reaches it")
+	}
 	switch key {
 	case "GAME_DISK_GB", "GAME_DISK_RESERVE_GB", "GAME_INSTANCE_TYPE", "GAME_REGION", "GAME_SPOT":
 		out.LogAs("info", "applies to the next ayis init")
@@ -132,7 +153,7 @@ func Set(env *config.Env, key, value string, out *output.Out) error {
 }
 
 // Run is `ayis config`.
-func Run(env *config.Env, args []string, jsonFlag bool, out *output.Out) int {
+func Run(env *config.Env, args []string, jsonFlag bool, out *output.Out, share Share) int {
 	sub := "show"
 	if len(args) > 0 {
 		sub, args = args[0], args[1:]
@@ -155,7 +176,7 @@ func Run(env *config.Env, args []string, jsonFlag bool, out *output.Out) int {
 		if len(args) > 1 {
 			value = args[1]
 		}
-		if err := Set(env, args[0], value, out); err != nil {
+		if err := Set(env, args[0], value, out, share); err != nil {
 			out.Die(err.Error())
 			return 1
 		}

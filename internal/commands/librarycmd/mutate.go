@@ -12,6 +12,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 
+	"github.com/jebin2/ayis/internal/accountcfg"
 	"github.com/jebin2/ayis/internal/ask"
 	"github.com/jebin2/ayis/internal/awscfg"
 	"github.com/jebin2/ayis/internal/commands/configcmd"
@@ -46,7 +47,7 @@ func NewChanger(ctx context.Context, r *Reader, env *config.Env, out *output.Out
 	m := library.Mutator{Library: r.Lib, W: store, Marks: library.SSMMarks{Client: ssm.NewFromConfig(cfg)}}
 	return &Changer{M: m, Ask: ask.New(out, os.Getenv("AYIS_YES") == "1"), Out: out, Env: env, Price: r.Prices,
 		Reinstall: func(ctx context.Context) int { return watchdog.Reinstall(ctx, env, out) },
-		Set:       func(k, v string) error { return configcmd.Set(env, k, v, out) }}, nil
+		Set:       func(k, v string) error { return configcmd.Set(env, k, v, out, accountcfg.Sharer(ctx, env)) }}, nil
 }
 
 func (c *Changer) die(text string) int {

@@ -148,6 +148,13 @@ W1 is the only item here that is a **user-visible bug today**, so it comes first
 **Exit:** a test with two simulated laptops shows the second sees the first's change, and the
 watchdog's environment equals the account settings after either one deploys.
 
+**Done (branch `p1-account-settings`).** `internal/config/scope.go` splits the registry (a test
+fails if a new setting is in neither list); `internal/accountcfg` syncs with
+`/ayis/<host>/config/`; ADR-0002 records it. Tested with two simulated computers, an offline
+change, and paging. Live on 2026-11-22: this server's first sync moved 8 settings into the
+account, and a second sync moved nothing. The 13 direct `os.Getenv` calls are left for P2, where
+the packages that hold them are reworked anyway.
+
 ### P2 - Architecture and module boundaries in the Go code (L)
 
 - Write the layer rule down and enforce it with a Go test that walks imports:

@@ -150,6 +150,9 @@ func run(ctx context.Context, args []string, lookup config.Lookup, stdout, stder
 			watchFlag = true
 		}
 	}
+	if syncsAccount[cmd] {
+		syncAccount(ctx, config.Load(get, repoDir(get)), out)
+	}
 	switch cmd {
 	case "help":
 		fmt.Fprintln(stdout, "ayis - All Yours, Instantly Streamed")
@@ -363,7 +366,8 @@ func run(ctx context.Context, args []string, lookup config.Lookup, stdout, stder
 	case "creds", "credentials":
 		return creds.Run(ctx, config.Load(get, repoDir(get)), args, jsonFlag, out)
 	case "config":
-		rc := configcmd.Run(config.Load(get, repoDir(get)), args, jsonFlag, out)
+		cfgEnv := config.Load(get, repoDir(get))
+		rc := configcmd.Run(cfgEnv, args, jsonFlag, out, shareSetting(ctx, cfgEnv))
 		// A hard limit is enforced by the cloud watchdog, which carries it: a new
 		// figure takes effect now, not at the next build. Only an installed
 		// watchdog is redeployed - with none, the next build installs it with this.

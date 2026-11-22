@@ -3,6 +3,7 @@ package configcmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,7 +96,7 @@ func TestSecretsAreNeverHandedOut(t *testing.T) {
 func TestSetEnforcesTheRules(t *testing.T) {
 	env, f, out, _, e := setup(t)
 	file := func() string { b, _ := os.ReadFile(f); return string(b) }
-	if err := Set(env, "GAME_DISK_GB", "120", out); err != nil || !strings.Contains(file(), "GAME_DISK_GB=120") {
+	if err := Set(env, "GAME_DISK_GB", "120", out, nil); err != nil || !strings.Contains(file(), "GAME_DISK_GB=120") {
 		t.Fatalf("%v\n%s", err, file())
 	}
 	_ = e
@@ -108,7 +109,7 @@ func TestSetEnforcesTheRules(t *testing.T) {
 		{"EMAIL_ALERTS", "nope", "does not look like an email"},
 		{"GAME_NTFY_URL", "not a url!", "not a valid ntfy topic or URL"},
 	} {
-		err := Set(env, c.key, c.val, out)
+		err := Set(env, c.key, c.val, out, nil)
 		if err == nil || !strings.Contains(err.Error(), c.why) {
 			t.Errorf("%s=%s: %v", c.key, c.val, err)
 		}
@@ -116,21 +117,21 @@ func TestSetEnforcesTheRules(t *testing.T) {
 	if !strings.Contains(file(), "GAME_DISK_GB=120") {
 		t.Errorf("a refused value must keep the old one:\n%s", file())
 	}
-	if err := Set(env, "GAME_ARCHIVE_EXPIRY_DAYS", "0", out); err != nil || !strings.Contains(file(), "GAME_ARCHIVE_EXPIRY_DAYS=0") {
+	if err := Set(env, "GAME_ARCHIVE_EXPIRY_DAYS", "0", out, nil); err != nil || !strings.Contains(file(), "GAME_ARCHIVE_EXPIRY_DAYS=0") {
 		t.Errorf("0 days is allowed - keep forever: %v", err)
 	}
 }
 
 func TestSettingASecretSaysNothingAboutIt(t *testing.T) {
 	env, f, out, _, errb := setup(t)
-	if err := Set(env, "TAILSCALE_API_KEY", "tskey-api-abc123", out); err != nil {
+	if err := Set(env, "TAILSCALE_API_KEY", "tskey-api-abc123", out, nil); err != nil {
 		t.Fatal(err)
 	}
 	said := errb.String() // events or plain, nothing on stdout
 	_ = said
 	var o, e bytes.Buffer
 	jout := &output.Out{Stdout: &o, Stderr: &e, JSON: true}
-	_ = Set(env, "TAILSCALE_API_KEY", "tskey-api-abc123", jout)
+	_ = Set(env, "TAILSCALE_API_KEY", "tskey-api-abc123", jout, nil)
 	if !strings.Contains(e.String(), "TAILSCALE_API_KEY = set") || strings.Contains(e.String(), "abc123") {
 		t.Errorf("it confirms, without echoing the token: %s", e.String())
 	}
@@ -138,7 +139,7 @@ func TestSettingASecretSaysNothingAboutIt(t *testing.T) {
 		t.Error("and it is written")
 	}
 	e.Reset()
-	_ = Set(env, "GAME_NTFY_URL", "", jout)
+	_ = Set(env, "GAME_NTFY_URL", "", jout, nil)
 	if !strings.Contains(e.String(), "GAME_NTFY_URL = cleared") {
 		t.Errorf("clearing: %s", e.String())
 	}
@@ -146,7 +147,7 @@ func TestSettingASecretSaysNothingAboutIt(t *testing.T) {
 		t.Errorf("remembered as off: %s", b)
 	}
 	e.Reset()
-	_ = Set(env, "GAME_DISK_GB", "90", jout)
+	_ = Set(env, "GAME_DISK_GB", "90", jout, nil)
 	if !strings.Contains(e.String(), "applies to the next ayis init") {
 		t.Errorf("it says when it applies: %s", e.String())
 	}
@@ -154,7 +155,7 @@ func TestSettingASecretSaysNothingAboutIt(t *testing.T) {
 
 func TestGetIsTheOneWayToSeeASecret(t *testing.T) {
 	env, _, out, _, _ := setup(t)
-	_ = Set(env, "TAILSCALE_API_KEY", "tskey-api-abc123", out)
+	_ = Set(env, "TAILSCALE_API_KEY", "tskey-api-abc123", out, nil)
 	if v, err := Get(env, "TAILSCALE_API_KEY"); err != nil || v != "tskey-api-abc123" {
 		t.Errorf("%q %v", v, err)
 	}
@@ -168,7 +169,7 @@ func TestGetIsTheOneWayToSeeASecret(t *testing.T) {
 
 func TestTheHumanView(t *testing.T) {
 	env, _, out, _, _ := setup(t)
-	_ = Set(env, "TAILSCALE_API_KEY", "tskey-api-abc123", out)
+	_ = Set(env, "TAILSCALE_API_KEY", "tskey-api-abc123", out, nil)
 	text := Show(env)
 	for _, want := range []string{"SETTING", "GAME_DISK_GB", "Cannot be shrunk later", "GAME_BITRATE_KBPS",
 		"  " + padRight("GAME_NTFY_URL", 28) + " " + padRight("set", 12)} {
@@ -204,25 +205,51 @@ func padRight(s string, n int) string {
 
 func TestRun(t *testing.T) {
 	env, _, out, o, e := setup(t)
-	if rc := Run(env, []string{"get"}, false, out); rc != 1 || !strings.Contains(e.String(), "usage: ayis config get <key>") {
+	if rc := Run(env, []string{"get"}, false, out, nil); rc != 1 || !strings.Contains(e.String(), "usage: ayis config get <key>") {
 		t.Errorf("rc %d %q", rc, e.String())
 	}
 	e.Reset()
-	if rc := Run(env, []string{"bogus"}, false, out); rc != 1 || !strings.Contains(e.String(), "usage: ayis config [show|--json|get <key>|set <key> [value]]") {
+	if rc := Run(env, []string{"bogus"}, false, out, nil); rc != 1 || !strings.Contains(e.String(), "usage: ayis config [show|--json|get <key>|set <key> [value]]") {
 		t.Errorf("rc %d %q", rc, e.String())
 	}
 	o.Reset()
-	if rc := Run(env, []string{"get", "GAME_DISK_GB"}, false, out); rc != 0 || o.String() != "80\n" {
+	if rc := Run(env, []string{"get", "GAME_DISK_GB"}, false, out, nil); rc != 0 || o.String() != "80\n" {
 		t.Errorf("rc %d %q", rc, o.String())
 	}
 	o.Reset()
-	Run(env, nil, true, out)
+	Run(env, nil, true, out, nil)
 	if !strings.HasPrefix(o.String(), "[") {
 		t.Errorf("--json after the subcommand: %q", o.String())
 	}
 	o.Reset()
-	Run(env, nil, false, out)
+	Run(env, nil, false, out, nil)
 	if !strings.Contains(o.String(), "SETTING") {
 		t.Errorf("bare config shows: %q", o.String())
+	}
+}
+
+func TestAnAccountSettingIsShared(t *testing.T) {
+	env, f, out, _, _ := setup(t)
+	file := func() string { b, _ := os.ReadFile(f); return string(b) }
+	var sent []string
+	share := func(k, v string) error { sent = append(sent, k+"="+v); return nil }
+	if err := Set(env, "GAME_MAX_SESSION_HOURS", "3", out, share); err != nil {
+		t.Fatal(err)
+	}
+	if len(sent) != 1 || sent[0] != "GAME_MAX_SESSION_HOURS=3" || strings.Contains(file(), "AYIS_PENDING_SHARE") {
+		t.Errorf("shared: %v\n%s", sent, file())
+	}
+	// A local setting never leaves this computer.
+	sent = nil
+	if err := Set(env, "GAME_FPS", "120", out, share); err != nil || len(sent) != 0 {
+		t.Errorf("a local setting was shared: %v %v", err, sent)
+	}
+	// AWS out of reach: saved here, and remembered for the next sync.
+	down := func(k, v string) error { return errors.New("no network") }
+	if err := Set(env, "GAME_BUDGET_INR", "3000", out, down); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(file(), "GAME_BUDGET_INR=3000") || !strings.Contains(file(), "AYIS_PENDING_SHARE=GAME_BUDGET_INR") {
+		t.Errorf("not kept for later:\n%s", file())
 	}
 }

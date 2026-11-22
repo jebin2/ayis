@@ -38,6 +38,8 @@ cd "$(dirname "$0")/.."
 # set: bash prints "setlocale: cannot change locale" on every machine that has not
 # generated en_IN, which is most of them.
 export LANGUAGE=en_IN TZ=Asia/Kolkata
+# No test may reach a real AWS account through its temporary .env (ADR-0002).
+export AYIS_NO_ACCOUNT_SYNC=1
 TIMEOUT="${TEST_TIMEOUT:-180}"
 cpus=$(nproc 2>/dev/null || echo 4); (( cpus > 8 )) && cpus=8
 JOBS="${TEST_JOBS:-$cpus}"
