@@ -24,11 +24,10 @@ lacks()    { if [[ $2 != *"$3"* ]]; then echo "  ok   $1"; pass=$((pass+1));
 check()    { if [[ $2 == "$3" ]]; then echo "  ok   $1"; pass=$((pass+1));
              else echo "  FAIL $1: got '$2' want '$3'"; fail=$((fail+1)); fi; }
 
-BROWSER=""
-for b in chromium chromium-browser google-chrome-stable google-chrome; do
-  command -v "$b" >/dev/null && { BROWSER=$b; break; }
-done
-[[ -n $BROWSER ]] || { echo "  (no chromium - skipped)"; echo "$GATE_NAME: 0 passed, 0 failed"; exit 0; }
+# shellcheck source=tests/lib/browser.sh
+source tests/lib/browser.sh
+BROWSER=$(find_browser)
+[[ -n $BROWSER ]] || { echo "  (no chromium - skipped; tools/dev/install-browser.sh installs one)"; echo "$GATE_NAME: 0 passed, 0 failed"; exit 0; }
 
 # What ayis says runs alone, verbatim, for the stub to answer `write` with.
 ALONE=$(./ayis --contract | python3 -I -c 'import json,sys;print(json.dumps(json.load(sys.stdin)["runs_alone"]))')

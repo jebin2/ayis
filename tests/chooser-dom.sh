@@ -29,12 +29,11 @@ lacks()    { if [[ $2 != *"$3"* ]]; then echo "  ok   $1"; pass=$((pass+1));
 check()    { if [[ $2 == "$3" ]]; then echo "  ok   $1"; pass=$((pass+1));
              else echo "  FAIL $1: got '$2' want '$3'"; fail=$((fail+1)); fi; }
 
-BROWSER=""
-for b in chromium chromium-browser google-chrome-stable google-chrome; do
-  command -v "$b" >/dev/null && { BROWSER=$b; break; }
-done
+# shellcheck source=tests/lib/browser.sh
+source tests/lib/browser.sh
+BROWSER=$(find_browser)
 if [[ -z $BROWSER ]]; then
-  echo "  (no chromium - skipped)"; echo "chooser-dom: 0 passed, 0 failed"; exit 0
+  echo "  (no chromium - skipped; tools/dev/install-browser.sh installs one)"; echo "chooser-dom: 0 passed, 0 failed"; exit 0
 fi
 
 # The page is copied out of the repo and never edited in place: a test that

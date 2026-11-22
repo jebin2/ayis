@@ -23,11 +23,10 @@ check()    { if [[ $2 == "$3" ]]; then echo "  ok   $1"; pass=$((pass+1));
 contains() { if [[ $2 == *"$3"* ]]; then echo "  ok   $1"; pass=$((pass+1));
              else echo "  FAIL $1: output lacks '$3'"; fail=$((fail+1)); fi; }
 
-BROWSER=""
-for b in chromium chromium-browser google-chrome-stable google-chrome; do
-  command -v "$b" >/dev/null && { BROWSER=$b; break; }
-done
-[[ -n $BROWSER ]] || { echo "  (no chromium - skipped)"; echo "settings-layout: 0 passed, 0 failed"; exit 0; }
+# shellcheck source=tests/lib/browser.sh
+source tests/lib/browser.sh
+BROWSER=$(find_browser)
+[[ -n $BROWSER ]] || { echo "  (no chromium - skipped; tools/dev/install-browser.sh installs one)"; echo "settings-layout: 0 passed, 0 failed"; exit 0; }
 
 mkdir -p "$T/r"
 cp -r app/renderer/index.html app/renderer/js "$T/r/"

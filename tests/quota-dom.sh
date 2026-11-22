@@ -65,11 +65,10 @@ contains "ayis publishes it"            "$(./ayis --contract)" '"runs_alone"'
 lacks    "  and the renderer keeps none" "$(cat "$RENDERER_ALL")" "const WRITES = new Set("
 contains "  it is told instead"       "$(cat "$RENDERER_ALL")" "write: !!res.write"
 
-BROWSER=""
-for b in chromium chromium-browser google-chrome-stable google-chrome; do
-  command -v "$b" >/dev/null && { BROWSER=$b; break; }
-done
-[[ -n $BROWSER ]] || { echo "  (no chromium - skipped)"; echo "quota-dom: $pass passed, $fail failed"; exit 0; }
+# shellcheck source=tests/lib/browser.sh
+source tests/lib/browser.sh
+BROWSER=$(find_browser)
+[[ -n $BROWSER ]] || { echo "  (no chromium - skipped; tools/dev/install-browser.sh installs one)"; echo "quota-dom: $pass passed, $fail failed"; exit 0; }
 
 mkdir -p "$T/r"
 cp -r app/renderer/index.html app/renderer/js "$T/r/"
