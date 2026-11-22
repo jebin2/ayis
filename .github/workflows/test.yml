@@ -1,5 +1,6 @@
-# Every push to main and every pull request runs the whole suite, so a break is
-# found by a red check and not by the person who next tries to use ayis.
+# Every push - to any branch - and every pull request runs the whole suite, so a
+# break is found by a red check on the branch, before it reaches main, and not by
+# the person who next tries to use ayis.
 #
 # It is the same command a person runs: `bash tests/run-all.sh` builds ayis, runs
 # `go test ./...`, then the shell and DOM suites. Nothing here touches AWS - the
@@ -9,7 +10,7 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
   workflow_dispatch:
   # The release workflow calls this one, so a tag cannot build a package that
@@ -74,7 +75,8 @@ jobs:
             echo "$unformatted" >&2
             exit 1
           fi
-          go vet ./...
+          # Our packages only: app/node_modules carries a Go package of its own.
+          go vet $(go list ./... | grep -v /node_modules/)
         shell: bash
 
       # ayis runs on a Mac and a Windows PC as well: it must at least build there,
@@ -100,6 +102,12 @@ jobs:
           # A repository secret, never a file: written into the repo it would be
           # the leak it looks for. Unset, only the generic key shapes are checked.
           GUARD_EXTRA: ${{ secrets.GUARD_EXTRA }}
+
+      # Coverage, with a floor it may not drop below; the table of the weakest
+      # packages goes to the run's summary page.
+      - name: Coverage
+        run: bash tools/ci/coverage.sh
+        shell: bash
 
       - name: Keep The Failed Suites' Output
         if: failure()

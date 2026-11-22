@@ -1,6 +1,6 @@
 # Desktop app: what each screen shows, and where it comes from
 
-A design record for a desktop app over `ayis`. The mockups in `stitch_design/` are the look; this
+A design record for a desktop app over `ayis`. The mockups in `design/mockups/` are the look; this
 page is the contract. Every field on a screen names the command that produces it, whether that
 command is free, and how often it may run.
 

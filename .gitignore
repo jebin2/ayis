@@ -33,7 +33,7 @@ __pycache__/
 *.pyc
 
 # The Stitch design export: the screens are kept, the zip they came in is not.
-stitch_design/design.zip
+docs/design/mockups/design.zip
 
 # Electron app dependencies, and what electron-builder produces: a 200 MB
 # unpacked Chromium per build.
@@ -47,7 +47,7 @@ app/dist/
 # the second line of defence, not the first.
 *.pdf
 Acct_Statement*
-/stitch_design/*.png
+/docs/design/mockups/*.png
 
 # Personal scratch at the repo root: AWS quota-case drafts, a region notes
 # file, and tmux server logs.

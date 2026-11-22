@@ -1,6 +1,6 @@
 // Command ayis is the ayis CLI. This is the Go port: it is built beside
 // the Bash ayis, one command at a time, and the Bash one is the oracle until the
-// port is complete (docs/migration/go-plan.md).
+// port is complete (docs/archive/go-plan.md).
 package main
 
 import (

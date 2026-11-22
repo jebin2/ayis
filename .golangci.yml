@@ -1,0 +1,28 @@
+# Go lint for ayis (docs/plans/production-readiness.md, P0). Report-only in CI
+# until the existing findings are fixed; then it blocks. Thresholds start at
+# today's worst and only go down.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard        # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - gocritic
+    - dupl
+    - gocyclo
+    - bodyclose
+    - nilerr
+  settings:
+    gocyclo:
+      # Today's worst is cmd/ayis run() at 113; P2 replaces it with a table.
+      # Lowered as each offender is split - the goal is 40.
+      min-complexity: 115
+    dupl:
+      threshold: 200
+  exclusions:
+    rules:
+      # Tests repeat set-up on purpose: each case reads on its own.
+      - path: _test\.go
+        linters: [dupl, gocyclo]

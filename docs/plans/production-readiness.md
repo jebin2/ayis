@@ -111,6 +111,25 @@ So everything after is checked automatically.
 
 **Exit:** CI runs on this branch; lint runs (report-only); coverage shows in the job summary.
 
+**Done (branch `p0-guardrails`).** Baseline the linters found, to be driven to zero before each
+job blocks:
+
+| Linter | Findings | Notes |
+|---|---|---|
+| golangci-lint v2.15.0 | 72 | 37 unchecked errors, 13 staticcheck, 8 unused, 5 `nilerr` (an error swallowed as success), 5 gocritic, 4 over complexity 40 - worst is `cmd/ayis` `run()` at 113 |
+| ESLint 10.15.0 | 33 | 23 unused names, 7 over complexity 60, 2 `var`, 1 file over 1,500 lines (`app.js`); **no undefined names** |
+| Ruff 0.17.6 | 34 | after turning off %-formatting, which the watchdog uses on purpose |
+| mypy 2.4.1 | 0 / 281 | clean as written; 281 under `--strict`, which needs type hints (P4) |
+| ShellCheck 0.11.0 | 101 warnings, 1 error | across 83 scripts; most are `cd` without `|| exit` (SC2164) |
+| Coverage | 65.2% | floor set at 65% in `tools/ci/coverage.sh` |
+
+Two findings beyond the linters:
+
+- `app/node_modules` holds a Go package (from the npm package `flatted`), so `go vet ./...` in
+  CI was vetting third-party code. CI and the coverage script now list our packages only.
+- `tests/secrets-guard.sh` already blocks tracked keys and, through the `GUARD_EXTRA` repository
+  secret, the owner's own identifiers - the PII test planned for P6 exists; P6 extends it.
+
 ### P1 - One source of truth for settings (M) - fixes a live bug
 
 W1 is the only item here that is a **user-visible bug today**, so it comes first.

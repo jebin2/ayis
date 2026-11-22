@@ -65,11 +65,11 @@ listing the archive). The packed binary starts and opens its window.
 Linux, X11 and Wayland. macOS should work and has not been tried.
 
 **Windows is written but untested.** `main/runner.js` shells through `wsl.exe`, because the
-`ayis` is Go and a native Windows build is planned (see docs/migration/go-plan.md, Track W). Stopping a job uses a
+`ayis` is Go and a native Windows build is planned (see docs/archive/go-plan.md, Track W). Stopping a job uses a
 POSIX process group (`kill(-pid)`), which will not reach into WSL as it stands - expect Stop not
 to work there until someone fixes it against a real machine.
 
-The design is the Stitch export in `../stitch_design`: its Tailwind config, fonts and icons are
+The design is the Stitch export in `../docs/design/mockups`: its Tailwind config, fonts and icons are
 vendored here, so the window loads nothing from the network. Rebuild the stylesheet with
 `npm run build:css` (`npm start` does it for you).
 
