@@ -9,8 +9,19 @@ Inst = dict[str, Any]
 TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 
+# The run (the ayis:run tag) of the machine the lines are about now: the action
+# that launched or started it, so `ayis log --run <id>` finds these lines too.
+RUN_TAG = "ayis:run"
+_run = [""]
+
+
+def about(inst: "Inst | None") -> None:
+    """The lines after this are about inst (None: about no one machine)."""
+    _run[0] = tag_value(inst, RUN_TAG) or "" if inst else ""
+
+
 def say(msg: str) -> None:
-    print("ayis-watchdog: " + msg, flush=True)
+    print("ayis-watchdog: " + msg + (" run=" + _run[0] if _run[0] else ""), flush=True)
 
 
 def error_code(exc: BaseException) -> str:

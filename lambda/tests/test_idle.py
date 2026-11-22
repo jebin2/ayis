@@ -327,3 +327,17 @@ def test_still_stuck_half_an_hour_later_is_silent(ntfy):
 def test_an_hour_after_forcing_the_hourly_reminder(ntfy):
     r = case(EC2([stuck()]), CW(), now=NOW + timedelta(minutes=60))
     assert r.calls == "terminate:i-a+SkipOsShutdown,notify:Game PC will not switch off - it may still be charging"
+
+
+# --- the run that started a machine, in the lines about it ---------------------
+
+def test_lines_about_a_machine_carry_its_run():
+    r = case(EC2([inst(tags=[{"Key": "ayis:run", "Value": "ab12cd34"}])]), CW(QUIET))
+    assert "terminate issued" in r.log and "run=ab12cd34" in r.log
+
+
+def test_a_machine_with_no_run_has_none_and_none_leaks_to_the_next():
+    r = case(EC2([inst("i-a", tags=[{"Key": "ayis:run", "Value": "ab12cd34"}]), inst("i-b")]), CW(QUIET))
+    lines = r.log.split(" / ")
+    assert any("i-a" in x and "run=ab12cd34" in x for x in lines)
+    assert all("run=" not in x for x in lines if "i-b" in x)

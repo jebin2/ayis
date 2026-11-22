@@ -6,7 +6,8 @@
 // Refresh means "this screen", and the reads behind it are independent, so
 // they run together rather than one after another.
 const NEEDS = {
-  dashboard: [[['status', '--json'], 'status'], [['watcher', '--json'], 'guards'], HOSTS_READ],
+  dashboard: [[['status', '--json'], 'status'], [['watcher', '--json'], 'guards'], [['doctor', '--json'], 'doctor'],
+              HOSTS_READ],
   // machines too: the instance-type row is a picker, and its options are
   // whatever this region rents - see editSetting.
   settings:  [[['config', '--json'], 'config'], [['machines', '--json'], 'machines'],
@@ -45,7 +46,7 @@ const READ_NAME = {
   elsewhere: 'Games in other regions',
   machines: 'Machine types and prices', sweep: 'Regions', config: 'Settings',
   creds: 'AWS key', tskey: 'Tailscale', deps: 'Local tools', cost: 'Exact cost this month',
-  hosts: 'Servers', limits: 'Hard limits',
+  hosts: 'Servers', limits: 'Hard limits', doctor: 'Health check',
 };
 const readName = json => (json.startsWith('host:') ? json.slice(5) : READ_NAME[json] || json);
 // The top Refresh, as a popup: what is being read, each ticking as it lands,
@@ -147,6 +148,9 @@ const GATE_READS = [
 const ALL_READS = [
   [['status', '--json'], 'status'],
   [['watcher', '--json'], 'guards'],
+  // The header's health check: the worst of the key, Tailscale, the watchdog
+  // and the budget (ayis doctor).
+  [['doctor', '--json'], 'doctor'],
   [['library', 'list', '--json'], 'library'],
   // Its own read: finding ayis's other buckets takes seconds, and the archive
   // in use must not wait for it.

@@ -58,6 +58,8 @@ type Params struct {
 	NtfyURL              string
 	NtfyToken            string
 	KeyFile              string
+	// Run is the action this launch is part of (AYIS_RUN_ID); the machine carries it.
+	Run string
 	// Prices for the cross-region notice (nil: unknown).
 	XRegionUSD, INR *float64
 }
@@ -306,6 +308,9 @@ func (p Provisioner) launch(ctx context.Context, a Params) (id string, restored 
 		TagSpecifications: []ec2types.TagSpecification{
 			{ResourceType: ec2types.ResourceTypeInstance, Tags: []ec2types.Tag{{Key: aws.String("Name"), Value: aws.String(a.Host)}, {Key: aws.String(p.tag(a)), Value: aws.String(a.Host)}}},
 			{ResourceType: ec2types.ResourceTypeVolume, Tags: []ec2types.Tag{{Key: aws.String("Name"), Value: aws.String(a.Host)}, {Key: aws.String(p.tag(a)), Value: aws.String(a.Host)}}}},
+	}
+	if a.Run != "" {
+		in.TagSpecifications[0].Tags = append(in.TagSpecifications[0].Tags, ec2types.Tag{Key: aws.String("ayis:run"), Value: aws.String(a.Run)})
 	}
 	if ud != nil {
 		in.UserData = aws.String(base64.StdEncoding.EncodeToString(ud))

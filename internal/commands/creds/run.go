@@ -37,7 +37,7 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 		}
 		ok := ShowAWS(a, out)
 		out.Gap()
-		if !ShowTS(tsFacts(ctx, env, l), out) {
+		if !ShowTS(TSFacts(ctx, env, l), out) {
 			ok = false
 		}
 		return rc(ok)
@@ -60,7 +60,7 @@ func Run(ctx context.Context, env *config.Env, args []string, jsonFlag bool, out
 			out.Die("usage: setup creds tailscale [status|signin|set|authkey|--json]")
 			return 1
 		}
-		t := tsFacts(ctx, env, l)
+		t := TSFacts(ctx, env, l)
 		if jsonFlag {
 			return emit(t, out)
 		}
@@ -133,7 +133,8 @@ func AWSFacts(ctx context.Context, env *config.Env) AWS {
 	return ReadAWS(ctx, cfg.Credentials, sts.NewFromConfig(cfg), home, os.Getenv("AWS_PROFILE"))
 }
 
-func tsFacts(ctx context.Context, env *config.Env, l laptop.Laptop) TS {
+// TSFacts reads whether this computer is on the tailnet and the token works.
+func TSFacts(ctx context.Context, env *config.Env, l laptop.Laptop) TS {
 	stored := env.Get("TAILSCALE_AUTH_KEY") != "" || env.Get("GAME_TS_AUTHKEY") != ""
 	return ReadTS(ctx, l, http.DefaultClient, env.Get("TAILSCALE_API_KEY"), stored)
 }

@@ -11,7 +11,10 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"syscall"
+
+	"github.com/jebin2/ayis/internal/journal"
 
 	"github.com/jebin2/ayis/internal/config"
 	"github.com/jebin2/ayis/internal/contract"
@@ -128,6 +131,21 @@ func run(ctx context.Context, args []string, lookup config.Lookup, stdout, stder
 			watchFlag = true
 		}
 	}
+	// This computer's log (internal/journal): every line the command says, under
+	// the run it belongs to - the app's id for one action, or a new one.
+	runID, _ := get("AYIS_RUN_ID")
+	if runID == "" {
+		runID = journal.NewRunID()
+	}
+	if j, err := journal.Open(journal.Path(get), runID, canonical(cmd), secretValues(get)); err == nil {
+		defer j.Close()
+		out.Stderr = j.Tee(out.Stderr)
+		// Stdout is the command's own data when JSON was asked for; that is not a log.
+		if !out.JSON && !jsonFlag {
+			out.Stdout = j.Tee(out.Stdout)
+		}
+		j.Line("ayis " + strings.Join(append([]string{cmd}, said(cmd, args)...), " "))
+	}
 	if syncsAccount[canonical(cmd)] {
 		syncAccount(ctx, loadEnv(get, out), out)
 	}
@@ -167,4 +185,16 @@ func accountRest(args []string) []string {
 		args = args[1:]
 	}
 	return args
+}
+
+// said is a command's arguments as the log may hold them: the value of a secret
+// being set is not, whatever its shape.
+func said(cmd string, args []string) []string {
+	out := append([]string(nil), args...)
+	for i := 0; i+2 < len(out); i++ {
+		if canonical(cmd) == "config" && out[i] == "set" && config.Secrets[out[i+1]] {
+			out[i+2] = "[redacted]"
+		}
+	}
+	return out
 }

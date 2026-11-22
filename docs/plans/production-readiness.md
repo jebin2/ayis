@@ -388,6 +388,35 @@ What each term means here:
 **Exit:** one run id followed end to end in a live test; `ayis doctor` red when the watchdog,
 keys or Tailscale are broken (fault-injection tests).
 
+**Done (2026-11-22).**
+
+- **Logs:** every command's lines go to `~/.local/state/ayis/ayis.log` (5 MB x 5, 0600) with its
+  time, run id and command (`internal/journal`). Redacted on the way in: every secret setting's
+  value, the ntfy topic, and anything shaped like a key, token, bearer header or password; a
+  secret being set (`config set KEY value`) is hidden too. Tested.
+- **Tracing:** the app gives each command a run id (`AYIS_RUN_ID`); a machine launched or started
+  carries it as the `ayis:run` tag; the watchdog's lines about that machine end in `run=<id>`.
+  `ayis log --run <id>` gathers this computer's lines (which include what the box said while
+  ayis watched it) and the watchdog's.
+- **Health:** `ayis doctor [--json]` - the AWS key, Tailscale, the cloud watchdog (installed,
+  scheduled, current, and its dead-man signal from P5), the budget's block, and the keychain -
+  each ok, warn or fail with what to do. Fault-injection tests for each failure. The app reads it
+  at start-up and on Home, and the header shows the worst: "All good" or "N problems", each named
+  in the tooltip.
+- **Metrics:** the watchdog's last good run (P5's heartbeat) and its last decision already show
+  on the Safety page; build and boot times stay as `ayis init` measures them.
+
+*Changed from the plan:*
+
+- The Lambda still logs **text**, not JSON: `ayis watchdog`, the watcher and the app read those
+  lines as they are, and every line now carries the machine's run. Worth doing only with a
+  reader that needs structure.
+- The box's own journal is not fetched by `ayis log --run`: what the box says during a build or a
+  session reaches this computer's log through ayis, and outside one there is no run to match.
+
+*Still open:* the exit asks for one run id followed end to end in a **live** test - it needs a
+session on AWS, so it waits for the owner, with P6's least-privilege test.
+
 ### P8 - Performance and resources (S–M)
 
 - Record today's numbers first: `ayis status` wall time, app cold start to first paint, memory

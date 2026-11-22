@@ -175,8 +175,10 @@ func (r *Reader) Current(ctx context.Context) State {
 		st.LogUnknown = code(logErr) != "ResourceNotFoundException"
 	}
 	if n := len(events); n > 0 {
-		st.LastMS, st.LastMsg = events[n-1].MS, strings.TrimPrefix(events[n-1].Msg, "ayis-watchdog: ")
-		st.Recent = events[max(0, n-8):]
+		st.LastMS, st.LastMsg = events[n-1].MS, Plain(strings.TrimPrefix(events[n-1].Msg, "ayis-watchdog: "))
+		for _, e := range events[max(0, n-8):] {
+			st.Recent = append(st.Recent, Event{e.MS, Plain(e.Msg)})
+		}
 	}
 	for i := len(arch) - 1; i >= 0; i-- {
 		if strings.HasPrefix(arch[i].Msg, "ayis-watchdog: archive:") {
@@ -231,3 +233,9 @@ func Itoa(n int) string { return strconv.Itoa(n) }
 func IsNotFound(err error) bool {
 	return code(err) == "ResourceNotFoundException" || code(err) == "NoSuchEntity"
 }
+
+var runSuffix = regexp.MustCompile(` run=[0-9a-z]+$`)
+
+// Plain is a logged line as a person reads it: without the run id it carries
+// for ayis log --run.
+func Plain(msg string) string { return runSuffix.ReplaceAllString(msg, "") }

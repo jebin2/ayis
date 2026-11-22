@@ -6,6 +6,10 @@ import (
 	"io"
 	"strconv"
 
+	"github.com/jebin2/ayis/internal/commands/doctor"
+
+	"github.com/jebin2/ayis/internal/commands/runlog"
+
 	"github.com/jebin2/ayis/internal/commands/awscmd"
 	"github.com/jebin2/ayis/internal/commands/boxcmd"
 	"github.com/jebin2/ayis/internal/commands/check"
@@ -282,6 +286,10 @@ func cmdMachines(cl *call) int {
 	return machines.Run(cl.ctx, cl.env(), cl.get, cl.args, cl.json, cl.out)
 }
 
+func cmdDoctor(cl *call) int {
+	return doctor.Run(cl.ctx, cl.env(), cl.json, cl.out)
+}
+
 func cmdCheck(cl *call) int {
 	return check.Run(cl.ctx, cl.env(), cl.args, cl.out)
 }
@@ -313,6 +321,10 @@ func cmdPing(cl *call) int {
 }
 
 func cmdLog(cl *call) int {
+	// One action's lines, from everywhere: ayis log --run <id> (P7).
+	if len(cl.args) > 0 && cl.args[0] == "--run" {
+		return runlog.Run(cl.ctx, cl.env(), cl.get, firstArg(cl.args[1:], ""), cl.out)
+	}
 	return remote.RunLog(cl.ctx, cl.env(), cl.args, cl.out)
 }
 
@@ -378,6 +390,7 @@ var handlers = map[string]func(*call) int{
 	"sweep":    cmdSweep,
 	"machines": cmdMachines,
 	"check":    cmdCheck,
+	"doctor":   cmdDoctor,
 	"deps":     cmdDeps,
 	"creds":    cmdCreds,
 	"config":   cmdConfig,

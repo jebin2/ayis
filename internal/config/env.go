@@ -17,6 +17,11 @@ import (
 // alone - a Name is a label anyone can give anything. AWS reserves only "aws:".
 const TagKey = "ayis:host"
 
+// RunTagKey is the tag a machine carries with the run that last launched or
+// started it (AYIS_RUN_ID), so the watchdog's lines about it name that run and
+// `ayis log --run <id>` can gather them.
+const RunTagKey = "ayis:run"
+
 // Env is the process environment plus the settings file, with the rule that
 // anything already exported wins.
 type Env struct {

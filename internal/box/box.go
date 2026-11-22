@@ -45,6 +45,13 @@ type Box struct {
 	// Beat reports a wait as data, for the app: Out.Wait. Nil when nobody reads it.
 	Beat   func(id, state, text string, secs, of int)
 	TagKey string
+	// Run is the action this is part of (AYIS_RUN_ID); a start tags the machine with it.
+	Run string
+}
+
+// tagger is CreateTags, which the real client has and a fake need not.
+type tagger interface {
+	CreateTags(context.Context, *ec2.CreateTagsInput, ...func(*ec2.Options)) (*ec2.CreateTagsOutput, error)
 }
 
 func (b Box) beat(id, state, text string, secs, of int) {
@@ -101,9 +108,18 @@ func (b Box) SpotRequest(ctx context.Context) (id, state string) {
 }
 
 // Start starts a stopped instance.
+//
+// The machine is tagged with the run that started it, best effort: a tag that
+// could not be written loses a log line's run id, never the start.
 func (b Box) Start(ctx context.Context) error {
-	_, err := b.EC2.StartInstances(ctx, &ec2.StartInstancesInput{InstanceIds: []string{b.ID}})
-	return err
+	if _, err := b.EC2.StartInstances(ctx, &ec2.StartInstancesInput{InstanceIds: []string{b.ID}}); err != nil {
+		return err
+	}
+	if t, ok := b.EC2.(tagger); ok && b.Run != "" {
+		_, _ = t.CreateTags(ctx, &ec2.CreateTagsInput{Resources: []string{b.ID},
+			Tags: []ec2types.Tag{{Key: aws.String(runTag), Value: aws.String(b.Run)}}})
+	}
+	return nil
 }
 
 // Stop stops it.
@@ -263,3 +279,6 @@ func streamCommand(goos string, ssh []string) (string, []string) {
 	}
 	return "sh", append([]string{"-c", `exec "$@" 2>&1`, "sh", "ssh"}, ssh...)
 }
+
+// runTag is config.RunTagKey; box does not import config.
+const runTag = "ayis:run"

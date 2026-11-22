@@ -61,6 +61,9 @@ function reply(a) {
   if (a === 'config --json') return { out: [{ key: 'GAME_REGION', kind: 'region', rule: null, default: 'ap-south-2', group: 'The box',
     note: '', label: 'region', secret: false, is_set: false, value: null, effective: 'ap-south-2' }] };
   if (a === 'host list --json') return { out: HOSTS, delay: 150 };
+  if (a === 'doctor --json') return { out: { worst: 'fail', items: [
+    { name: 'aws key', state: 'ok', text: 'AWS accepts the key' },
+    { name: 'cloud watchdog', state: 'fail', text: 'no check has finished cleanly for 40 min', fix: 'ayis watchdog' }] } };
   if (a.startsWith('host status ')) return { held: a.split(' ')[2] };
   return { rc: 1, lines: ['the stub does not know: ' + a] };
 }
@@ -128,6 +131,8 @@ cat > "$T/r/probe.js" <<'PROBE'
     out.push('FAILED | ' + card('attic').dataset.state + ' / ' + txt(card('attic')));
     out.push('FAILED BUTTONS | ' + buttons(card('attic')));
     const kept = JSON.parse(localStorage.getItem('ayis.home'));
+    const doc = document.getElementById('hdr-doctor');
+    out.push('DOCTOR | ' + (doc.hidden ? 'hidden' : doc.textContent + ' ' + doc.className.includes('pill-bad') + ' ' + doc.title));
     out.push('KEPT | ' + kept.hosts.map(h => h.name).join(',') + ' gpu=' + kept.identity.homebox.gpu
              + ' status=' + JSON.stringify(kept).includes('set_up'));
   } catch (e) { out.push('THREW | ' + e.message + ' ' + (e.stack || '').split('\n')[1]); }
@@ -184,6 +189,8 @@ contains "a failed check says so"                 "$(row 'FAILED')" "Check faile
 contains "  with ayis's reason"                     "$(row 'FAILED')" "attic did not answer over ssh"
 check    "  and only Try again, and its details"  "$(row 'FAILED BUTTONS' | tr -cd '[:print:]')" "FAILED BUTTONS | Try again, Details"
 lacks    "  the reason, not a prefix"            "$(row 'FAILED')" "could not run:"
+contains "the header says the health check's worst" "$(row 'DOCTOR')" "DOCTOR | 1 problem true"
+contains "  and names it, with what to do"       "$(row 'DOCTOR')" "cloud watchdog: no check has finished cleanly for 40 min - ayis watchdog"
 contains "  and what to do about it (fault.Hint)" "$(row 'FAILED')" "attic did not answer over ssh Try again in a minute."
 
 echo "4. what is remembered for next time"

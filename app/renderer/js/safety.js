@@ -244,3 +244,19 @@ function paintLimits(d) {
       'If this month\'s budget is used up, AWS stops new machines from starting and the running one is switched off.', '', []));
   }
 }
+
+// ayis doctor's answer, in the header: the worst of the AWS key, Tailscale, the
+// cloud watchdog, the budget and the keychain. Each problem and what to do are
+// in its tooltip; a click goes to Safety, where most of them are fixed.
+function paintDoctor(d) {
+  const b = $('hdr-doctor');
+  const bad = (d.items || []).filter(it => it.state !== 'ok');
+  b.hidden = false;
+  b.className = 'pill shrink-0 ' + (d.worst === 'fail' ? 'pill-bad' : d.worst === 'warn' ? 'pill-warn' : 'pill-ok');
+  b.textContent = d.worst === 'ok' ? 'All good'
+    : `${bad.length} ${bad.length === 1 ? 'problem' : 'problems'}`;
+  b.title = bad.length ? bad.map(it => `${it.name}: ${it.text}${it.fix ? ' - ' + it.fix : ''}`).join('\n')
+    : 'The AWS key, Tailscale, the cloud watchdog and the budget are all working.';
+  b.dataset.worst = d.worst;
+  b.onclick = () => goView('guards');
+}

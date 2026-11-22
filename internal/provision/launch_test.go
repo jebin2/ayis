@@ -416,3 +416,21 @@ func TestTheUploadErrorIsShown(t *testing.T) {
 		t.Errorf("%v", err)
 	}
 }
+
+// The machine carries the run that launched it, so the watchdog's lines about it
+// can be gathered with that run's (ayis log --run).
+func TestALaunchCarriesItsRun(t *testing.T) {
+	p, c, _, _, a := rig(t)
+	a.Run = "ab12cd34"
+	if _, err := p.Run(context.Background(), a); err != nil {
+		t.Fatal(err)
+	}
+	for _, ts := range c.run.TagSpecifications {
+		for _, tg := range ts.Tags {
+			if ts.ResourceType == ec2types.ResourceTypeInstance && aws.ToString(tg.Key) == "ayis:run" && aws.ToString(tg.Value) == "ab12cd34" {
+				return
+			}
+		}
+	}
+	t.Errorf("no ayis:run tag: %+v", c.run.TagSpecifications)
+}

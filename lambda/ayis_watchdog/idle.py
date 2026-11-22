@@ -6,7 +6,7 @@ from typing import Any
 
 from . import settings
 from .aws import call, end_verb, instances, permission, tag
-from .common import Inst, iso, mb, minutes, parse_iso, say, tag_value
+from .common import Inst, about, iso, mb, minutes, parse_iso, say, tag_value
 from .notify import notify
 
 Decision = dict[str, str]
@@ -27,6 +27,7 @@ def run(ec2: Any, cw: Any, now: datetime, dry: bool = False) -> dict[str, list[D
 
     decisions, failed = [], []
     for inst in found:
+        about(inst)
         iid = inst.get("InstanceId", "?")
         # One instance failing must not stop the others being handled.
         try:
@@ -42,6 +43,7 @@ def run(ec2: Any, cw: Any, now: datetime, dry: bool = False) -> dict[str, list[D
             say("%s FAILED: %s" % (iid, exc))
             decisions.append({"instance": iid, "action": "error", "reason": str(exc)})
             failed.append(iid)
+    about(None)
     if failed:
         raise RuntimeError("could not handle %s" % ", ".join(failed))
     return {"decisions": decisions}

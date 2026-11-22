@@ -101,7 +101,7 @@ const beside = raw => {
 // line: ~/.config/ayis/logs/<time>-<command>.log (the app's data folder). The page
 // shows a run's log only until the next one starts, so when a step is slow or a
 // run is cancelled this is what says what happened and when. The last 40 stay.
-function runLog(args) {
+function runLog(args, runId) {
   const fs = require('node:fs');
   let fd = null;
   try {
@@ -110,7 +110,7 @@ function runLog(args) {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const name = `${stamp}-${verb(args).slice(0, 2).join('-') || 'run'}.log`;
     fd = fs.openSync(path.join(dir, name), 'a', 0o600);
-    fs.writeSync(fd, `ayis ${args.join(' ')}\n`);
+    fs.writeSync(fd, `ayis ${args.join(' ')}  (run ${runId}: ayis log --run ${runId})\n`);
     const old = fs.readdirSync(dir).filter(f => f.endsWith('.log')).sort();
     for (const f of old.slice(0, Math.max(0, old.length - 40))) { try { fs.unlinkSync(path.join(dir, f)); } catch { /* in use */ } }
   } catch { return null; }
@@ -170,10 +170,14 @@ function startJob(args, env = {}) {
   const id = nextId++;
   const allowed = envAllowed();
   const safe = Object.fromEntries(Object.entries(env).filter(([k]) => allowed.has(k)));
-  const log = readOnly ? readLog(id, args) : runLog(args);
+  // One id for the action, carried by ayis into its own log, the machine it
+  // starts and the watchdog's lines about that machine: `ayis log --run <id>`
+  // gathers them (P7).
+  const runId = require('node:crypto').randomBytes(4).toString('hex');
+  const log = readOnly ? readLog(id, args) : runLog(args, runId);
   const child = run({
     repo: REPO,
-    args, env: safe,
+    args, env: { ...safe, AYIS_RUN_ID: runId },
     onEvent: event => {
       if (log) log(event);
       send('ayis:event', { id, event });
@@ -184,7 +188,7 @@ function startJob(args, env = {}) {
   // The renderer needs to know whether this was a write - for its note and its
   // re-read - and asking it to work that out again is how the two lists came
   // to disagree. It is told.
-  return { ok: true, id, write: !readOnly };
+  return { ok: true, id, write: !readOnly, runId };
 }
 
 ipcMain.handle('ayis:run', (_e, { args, env }) => startJob(args, env || {}));

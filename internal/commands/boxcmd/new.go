@@ -54,7 +54,7 @@ func New(ctx context.Context, get config.Lookup, env *config.Env, out *output.Ou
 	sun := sunshine.Client{}
 	d := Deps{
 		Box: box.Box{EC2: client, ID: env.Get("GAME_INSTANCE_ID"), Host: host, Node: node, Key: filepath.Join(home, ".ssh", host+".pem"), R: r,
-			Log: out.Log, Beat: out.Wait, TagKey: config.TagKey},
+			Log: out.Log, Beat: out.Wait, TagKey: config.TagKey, Run: env.Get("AYIS_RUN_ID")},
 		Out: out, Ask: a, Env: env, R: r, Sun: sun,
 		Pair:        sunshine.Pairer{C: sun, R: r, Sleep: time.Sleep, Log: out.Log},
 		Player:      stream.Player{R: r, Get: env.Get, CacheDir: cache, Echo: out.Echo, Log: out.Log, Warn: func(t string) { out.LogAs("warn", t) }},

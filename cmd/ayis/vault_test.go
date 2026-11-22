@@ -127,3 +127,25 @@ func TestAYISNoKeychainKeepsEverythingInDotEnv(t *testing.T) {
 		t.Errorf("touched the keychain: %v", v)
 	}
 }
+
+// Every command lands in this computer's log, under the app's run id, with the
+// value of a secret being set hidden - and the log never holds a secret.
+func TestEveryCommandIsLoggedUnderItsRunWithoutSecrets(t *testing.T) {
+	dir := t.TempDir()
+	envf := filepath.Join(dir, ".env")
+	_ = os.WriteFile(envf, []byte("SUNSHINE_PASS=Correct-Horse-9\n"), 0o600)
+	logf := filepath.Join(dir, "ayis.log")
+	vars := map[string]string{"AYIS_ENV_FILE": envf, "AYIS_LOG_FILE": logf, "AYIS_RUN_ID": "run42", "AYIS_NO_ACCOUNT_SYNC": "1", "HOME": dir}
+	runIt(t, vars, "config", "set", "TAILSCALE_API_KEY", "tskey-api-abc123")
+	runIt(t, vars, "config", "get", "SUNSHINE_PASS")
+	b, _ := os.ReadFile(logf)
+	log := string(b)
+	if !strings.Contains(log, "run=run42 config | ayis config set TAILSCALE_API_KEY [redacted]") {
+		t.Errorf("the command is logged under its run:\n%s", log)
+	}
+	for _, s := range []string{"tskey-api-abc123", "Correct-Horse-9"} {
+		if strings.Contains(log, s) {
+			t.Errorf("the log holds a secret %q:\n%s", s, log)
+		}
+	}
+}

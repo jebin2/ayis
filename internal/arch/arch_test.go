@@ -109,6 +109,8 @@ var commandEdges = map[string]bool{
 	"boxcmd->limitscmd": true, "boxcmd->watchdog": true,
 	"check->creds": true, "check->deps": true, "check->watchdog": true,
 	"cost->status": true, "games->remote": true,
+	// doctor is every other command's reader, asked at once.
+	"doctor->creds": true, "doctor->watchdog": true,
 	"hostcmd->check": true, "hostcmd->creds": true,
 	"initcmd->check": true, "initcmd->limitscmd": true, "initcmd->notify": true, "initcmd->watchdog": true,
 	"librarycmd->configcmd": true, "librarycmd->watchdog": true,

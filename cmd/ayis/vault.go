@@ -57,3 +57,25 @@ func plainSecrets(env *config.Env) bool {
 	}
 	return false
 }
+
+// secretValues are the values the log must never hold: every secret setting,
+// and the ntfy topic (anyone who knows it reads the alerts). Read from .env and
+// the keychain without moving anything.
+func secretValues(get config.Lookup) []string {
+	env := config.Load(get, repoDir(get))
+	if v, _ := get("AYIS_NO_KEYCHAIN"); v != "1" {
+		if vault := vaultFor(env.File); vault != nil {
+			env.UseVault(vault)
+		}
+	}
+	var out []string
+	for k := range config.Secrets {
+		if v := env.Get(k); v != "" {
+			out = append(out, v)
+		}
+	}
+	if u := config.NtfyURL(env.Get("GAME_NTFY_URL")); u != "" {
+		out = append(out, u[strings.LastIndex(u, "/")+1:])
+	}
+	return out
+}

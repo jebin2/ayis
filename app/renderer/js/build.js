@@ -1373,7 +1373,7 @@ window.ayis.onEvent(({ id, event }) => {
                         config: paintConfig, status: paintStatus, machines: paintMachines,
                         sweep: paintSweep, creds: paintCreds, deps: paintDeps,
                         tskey: paintTskey, ping: paintPing, elsewhere: paintElsewhere,
-                        hosts: paintHosts, limits: paintLimits }[job.json]
+                        hosts: paintHosts, limits: paintLimits, doctor: paintDoctor }[job.json]
           || (job.json.startsWith('host:') && (d => paintHostStatus(job.json.slice(5), d)));
         if (!paint) throw new Error(`no painter for ${job.json}`);
         paint(data);

@@ -855,8 +855,8 @@ contains "a session is playing"            "$(row AFTER)" "playing=run:Playing"
 contains "stopping it opens the popup"     "$(row AFTER)" "popup=open=true title=Refreshing Machine"
 contains "  which leaves it ready to play" "$(row AFTER)" "after=panel:Ready to play closed=true"
 contains "  and calls nothing a failure"   "$(row AFTER)" "fail=false"
-# One round of reads, under the popup: not the page's, then all of them again.
-contains "  read once, all under the popup" "$(row AFTER)" "statusReads=1 stillReading=0 rows=11"
+# One round of reads, under the popup: not the page's, then all of them again (the health check is the twelfth).
+contains "  read once, all under the popup" "$(row AFTER)" "statusReads=1 stillReading=0 rows=12"
 ENGINE=""
 
 echo "7i. after a session, the machine is still the build: its steps and its log"

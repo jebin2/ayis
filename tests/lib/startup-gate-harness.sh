@@ -59,12 +59,13 @@ window.ayis = {
       }, 0);
       return Promise.resolve({ ok: true, id });
     }
-    // Games in other places, machines of your own: no case here is about
+    // Games in other places, machines of your own, the health check: no case here is about
     // them, so the answer is "none" unless a case says otherwise - an
     // unanswered read holds the gate.
     const reply = window.__answers[line]
       ?? (line === 'library elsewhere --json' ? { error: null, places: [] }
-        : line === 'host list --json' ? [] : undefined);
+        : line === 'host list --json' ? []
+        : line === 'doctor --json' ? { worst: 'ok', items: [] } : undefined);
     if (reply !== undefined) {
       // Answer on a later turn, the way a real run does - or slowly, for a case
       // that needs the window caught mid-read.

@@ -6,7 +6,7 @@ from typing import Any
 from . import settings
 from .archive import expire_archive
 from .aws import mark_put
-from .common import iso, say
+from .common import about, iso, say
 from .events import state_changed
 from .idle import run
 from .limits import limits
@@ -48,22 +48,26 @@ def run_all(ec2: Any, cw: Any, s3: Any, ssm: Any, trail: Any, now: datetime, dry
         say("limits: check FAILED: %s" % exc)
         failure, lim = exc, None
     result: dict[str, Any]
+    about(None)   # a check that raised part way leaves no machine's run behind
     try:
         result = dict(run(ec2, cw, now, dry))
     except Exception as exc:
         failure, result = failure or exc, {"decisions": []}
     if lim is not None:
         result["limits"] = lim
+    about(None)
     try:
         result["stopped"] = expire_stopped(ec2, now, dry)
     except Exception as exc:
         say("stopped box: check FAILED - nothing deleted: %s" % exc)
         failure = failure or exc
+    about(None)
     try:
         result["archive"] = expire_archive(ec2, s3, ssm, cw, trail, now, dry, s3_for)
     except Exception as exc:
         say("archive: check FAILED - nothing deleted: %s" % exc)
         failure = failure or exc
+    about(None)
     if failure:
         # At most hourly: a watchdog that is failing fails every 5 minutes.
         if not dry and now.minute < 5:

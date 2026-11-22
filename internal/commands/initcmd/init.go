@@ -182,7 +182,7 @@ func (i *Init) Run(ctx context.Context) int {
 		return i.die("the shutdown behaviour is not what the watchdog needs - see above; nothing will be built on it")
 	}
 
-	bx := box.Box{EC2: i.EC2, ID: id, Host: host, Node: host, R: i.R, Sleep: i.Sleep, Log: i.Out.Log, Beat: i.Out.Wait, Key: filepath.Join(i.Home, ".ssh", host+".pem"), TagKey: config.TagKey}
+	bx := box.Box{EC2: i.EC2, ID: id, Host: host, Node: host, R: i.R, Sleep: i.Sleep, Log: i.Out.Log, Beat: i.Out.Wait, Key: filepath.Join(i.Home, ".ssh", host+".pem"), TagKey: config.TagKey, Run: i.Env.Get("AYIS_RUN_ID")}
 	// A reused instance may be stopped, in which case nothing will ever join the
 	// tailnet until it is started.
 	if st, err := bx.State(ctx); err == nil && st == "stopped" {
@@ -309,7 +309,7 @@ func (i *Init) provision(ctx context.Context, pre check.Result, ntfy string) (pr
 	}
 	res, err := p.Run(ctx, provision.Params{XRegionUSD: xr, INR: inr, Host: host, Region: region, Type: pre.Type, DiskGB: i.diskGB(), DataGB: data.GB, ExtraApps: strings.Join(data.ExtraApps, ","), Spot: pre.Spot, TagKey: config.TagKey,
 		AuthKey: pre.AuthKey, Apps: apps, Login: login, ReserveGB: i.Env.Setting("GAME_DISK_RESERVE_GB"),
-		Bucket: bucket, BucketRegion: bucketRegion, NtfyURL: ntfy, NtfyToken: i.ntfyToken(ntfy), KeyFile: filepath.Join(home, ".ssh", host+".pem")})
+		Bucket: bucket, BucketRegion: bucketRegion, NtfyURL: ntfy, NtfyToken: i.ntfyToken(ntfy), Run: i.Env.Get("AYIS_RUN_ID"), KeyFile: filepath.Join(home, ".ssh", host+".pem")})
 	if err != nil {
 		var le *provision.LaunchError
 		if errors.As(err, &le) {

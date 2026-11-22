@@ -9,7 +9,7 @@ from typing import Any
 
 from . import settings
 from .aws import call, end_verb, instances, mark_get, mark_put, tag
-from .common import Inst, error_code, hours, iso, minutes, parse_iso, say, tag_value
+from .common import Inst, about, error_code, hours, iso, minutes, parse_iso, say, tag_value
 from .notify import notify
 
 # This month's machine time: {"done": seconds of runs that ended, "open":
@@ -249,6 +249,7 @@ def limits(ec2: Any, ssm: Any, iam: Any, now: datetime, dry: bool = False, budge
 
     decisions = []
     for inst in running:
+        about(inst)
         iid = inst["InstanceId"]
         why = why_all
         if why is None and session_ends(ec2, budgets, inst, now, dry):
@@ -265,6 +266,7 @@ def limits(ec2: Any, ssm: Any, iam: Any, now: datetime, dry: bool = False, budge
         title, body = ENDED[why]
         notify(title, (body + " " + cost_words(ec2, budgets, inst, now)).strip(), "high", "stop_sign")
         decisions.append({"instance": iid, "action": verb, "reason": why})
+    about(None)
     if failure:
         raise failure
     return {"decisions": decisions}
