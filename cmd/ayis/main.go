@@ -129,7 +129,7 @@ func run(ctx context.Context, args []string, lookup config.Lookup, stdout, stder
 		}
 	}
 	if syncsAccount[canonical(cmd)] {
-		syncAccount(ctx, config.Load(get, repoDir(get)), out)
+		syncAccount(ctx, loadEnv(get, out), out)
 	}
 	cl := &call{ctx: ctx, get: get, args: args, json: jsonFlag, watch: watchFlag, out: out, stdout: stdout}
 	h, ok := handlers[canonical(cmd)]

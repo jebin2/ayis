@@ -401,7 +401,7 @@ type call struct {
 }
 
 // env is the settings, read fresh: a command that writes one reads it back.
-func (cl *call) env() *config.Env { return config.Load(cl.get, repoDir(cl.get)) }
+func (cl *call) env() *config.Env { return loadEnv(cl.get, cl.out) }
 
 // canonical is a command's own name for any of its names: "up" is "open".
 func canonical(name string) string {

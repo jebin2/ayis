@@ -343,6 +343,32 @@ watchdog shows a warning in the app within 15 minutes.
 **Exit:** threat model reviewed; gitleaks and the PII test block CI; a fresh IAM user with only
 the generated policy completes `init → open → destroy` in a live test.
 
+**Done (2026-11-22), with the owner's two decisions:** stay unsigned ([ADR-0005](../adr/0005-unsigned-builds.md));
+a public ntfy topic by default, with a warning and an optional token ([ADR-0004](../adr/0004-public-ntfy-topic-by-default.md)).
+
+- **Threat model** in `docs/security/threat-model.md`; `SECURITY.md` says how to report privately.
+- **Least privilege:** `ayis aws policy` prints the exact policy - 127 SDK operations as 116 IAM
+  actions, plus `iam:PassRole` and the spot service-linked role. A test scans the source and fails
+  when a call is missing from the list or the list names one nothing calls.
+  `docs/aws-account-setup.md` says how to make a user with only that.
+- **Secrets at rest (W10):** the four secrets in `.env` move to the OS store on the first run that
+  has one (`.env` keeps `@keychain`); none, and they stay in `.env` as before. `AYIS_NO_KEYCHAIN=1`
+  opts out (the test suites set it). Tested with a fake store; the real GNOME Keyring answered on
+  the dev server.
+- **ntfy token** (`GAME_NTFY_TOKEN`) sent by every sender and reader; the Safety page warns about
+  a public ntfy.sh topic with no token.
+- **CI:** gitleaks scans every push's whole history and blocks (all ten historic hits were fakes or
+  a variable name). Releases carry `SHA256SUMS` and build provenance attestations.
+
+**Still open - needs the owner:**
+
+- The PII check runs on `GUARD_EXTRA`, a repository secret that **was never set** - so CI has
+  checked key shapes but never the owner's own identifiers. It needs setting (`gh secret set
+  GUARD_EXTRA`, a regex of the email and Steam name). Checked locally with the email: clean.
+- GitHub's private vulnerability reporting is off; `SECURITY.md` points to it.
+- The live test of a fresh IAM user with only the generated policy (`init → open → destroy`)
+  spends a session's worth of money, so it waits for the owner.
+
 ### P7 - Observability (M)
 
 What each term means here:

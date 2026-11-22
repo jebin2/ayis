@@ -40,6 +40,8 @@ cd "$(dirname "$0")/.."
 export LANGUAGE=en_IN TZ=Asia/Kolkata
 # No test may reach a real AWS account through its temporary .env (ADR-0002).
 export AYIS_NO_ACCOUNT_SYNC=1
+# Nor the system keychain: a suite's secrets stay in its own .env (cmd/ayis/vault.go).
+export AYIS_NO_KEYCHAIN=1
 TIMEOUT="${TEST_TIMEOUT:-180}"
 cpus=$(nproc 2>/dev/null || echo 4); (( cpus > 8 )) && cpus=8
 JOBS="${TEST_JOBS:-$cpus}"

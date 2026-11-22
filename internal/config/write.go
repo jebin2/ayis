@@ -22,8 +22,12 @@ func (e *Env) Has(key string) bool {
 // keeping every other line. The file is made readable by you alone before
 // anything is written to it, and the write is atomic: a crash leaves the old
 // file, not half of a new one. The in-memory view follows.
+//
+// A secret goes to the OS store when there is one, and .env holds "@keychain";
+// a store that refuses it leaves it in .env, as before there was a store.
 func (e *Env) Set(key, value string) error {
-	if err := rewrite(e.File, key, &value); err != nil {
+	stored, _ := e.keep(key, value)
+	if err := rewrite(e.File, key, &stored); err != nil {
 		return err
 	}
 	e.vars[key] = value
@@ -32,6 +36,9 @@ func (e *Env) Set(key, value string) error {
 
 // Unset takes one key out, keeping every other line.
 func (e *Env) Unset(key string) error {
+	if e.vault != nil && Secrets[key] {
+		_ = e.vault.Delete(key)
+	}
 	if err := rewrite(e.File, key, nil); err != nil {
 		return err
 	}
@@ -81,7 +88,22 @@ func rewrite(path, key string, value *string) error {
 // FileValue is a setting as the settings FILE has it, whatever the environment
 // says: whether this computer was ever set up for something is a fact about the
 // file, not about a variable that happens to be exported.
+//
+// A secret kept in the OS store is read back from it: callers compare values,
+// and "@keychain" is not one.
 func (e *Env) FileValue(key string) string {
+	v := e.rawFileValue(key)
+	if v == InVault && e.vault != nil {
+		if s, err := e.vault.Get(key); err == nil {
+			return s
+		}
+		return ""
+	}
+	return v
+}
+
+// rawFileValue is the line as written, "@keychain" included.
+func (e *Env) rawFileValue(key string) string {
 	f, err := os.Open(e.File)
 	if err != nil {
 		return ""

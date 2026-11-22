@@ -27,6 +27,7 @@ require (
 )
 
 require (
+	al.essio.dev/pkg/shellescape v1.5.1 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.25 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.8 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.8 // indirect
@@ -38,5 +39,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/signin v1.12.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.39.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.0 // indirect
+	github.com/danieljoos/wincred v1.2.2 // indirect
+	github.com/godbus/dbus/v5 v5.1.0 // indirect
+	github.com/zalando/go-keyring v0.2.6 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 )

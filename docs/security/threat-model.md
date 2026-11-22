@@ -18,14 +18,23 @@ and AWS itself.
 | Asset | Where it lives | Reachable by | Controls | Gaps |
 |---|---|---|---|---|
 | **AWS access key** - rents GPUs on your bill | `~/.aws/credentials` (written by `aws configure` or `ayis creds set`) | A | File is yours (0600 by the AWS CLI); the AWS budget emails at 80% and **blocks new machines at 100%** (`ayis limits`); hard limits on hours | An administrator key is more than ayis needs: `ayis aws policy` prints the exact policy, checked against the code ([how](../aws-account-setup.md#a-key-that-can-do-only-what-ayis-does)) |
-| **Tailscale auth key and API token** - join or manage your tailnet | `.env` (0600) | A | Auth keys are single-use and expire; the API token is optional | Plain text at rest (W10: OS keychain is planned) |
+| **Tailscale auth key and API token** - join or manage your tailnet | The system keychain (`.env` holds `@keychain`); `.env` (0600) where there is none | A | Kept in the OS store when it answers (moved there on the first run); auth keys are single-use and expire; the API token is optional | Plain text in `.env` on a computer with no keychain (a server), or with `AYIS_NO_KEYCHAIN=1` |
 | **SSH key for the box** | `~/.ssh/<host>.pem` (0600) | A | The box has **no inbound SSH** from the internet - only Tailscale's UDP port is open; SSH works only over the tailnet | - |
-| **Sunshine (streaming) login** | `.env`, and the box | A | Sunshine listens on the tailnet only | Plain text at rest (W10) |
+| **Sunshine (streaming) login** | The system keychain (as above), and the box | A | Sunshine listens on the tailnet only | As above |
 | **Steam login token** | The box's disk; archived as `steam-account.tgz` in S3 | A (via the AWS key) | Bucket: private, all public access blocked, encrypted at rest (SSE-S3); the box's own role reaches only its bucket | Anyone with your AWS key can read it - protect the key |
 | **Saved games** | S3 bucket `ayis-library-<hash>` | A (via the AWS key), B (by name) | As above; the name is a hash, but a name alone gives nothing - no public access | - |
-| **ntfy topic and token** - your alerts, which carry costs | `.env`; your account's SSM settings; the watchdog's environment; the box's `/etc/ayis-notify.conf` (0600) | **B** (a public topic is readable by anyone who knows its name), A | Topic is long and random; optional access token (`GAME_NTFY_TOKEN`); the app warns about a public topic ([ADR-0004](../adr/0004-public-ntfy-topic-by-default.md)) | Public by default - a choice, not an oversight |
+| **ntfy topic and token** - your alerts, which carry costs | The system keychain (the token) and `.env` (the topic); your account's SSM settings; the watchdog's environment; the box's `/etc/ayis-notify.conf` (0600) | **B** (a public topic is readable by anyone who knows its name), A | Topic is long and random; optional access token (`GAME_NTFY_TOKEN`); the app warns about a public topic ([ADR-0004](../adr/0004-public-ntfy-topic-by-default.md)) | Public by default - a choice, not an oversight |
 | **The cloud watchdog** - can stop and delete your machines and games | Lambda + IAM role in your account | (none outside AWS) | Its role may end only instances tagged with your host, tag only with its own keys (tested against the code), and touch only ayis's buckets and SSM path | - |
 | **This repository and its releases** | GitHub | C, D | gitleaks scans every push's whole history and blocks; `tests/secrets-guard.sh` checks key shapes and the owner's own identifiers (`GUARD_EXTRA`); releases carry `SHA256SUMS` and GitHub build provenance; dependencies are checked weekly (govulncheck, npm audit) | macOS and Windows builds are **unsigned** ([ADR-0005](../adr/0005-unsigned-builds.md)) |
+
+## Secrets on your computer
+
+`TAILSCALE_API_KEY`, `TAILSCALE_AUTH_KEY`, `SUNSHINE_PASS` and `GAME_NTFY_TOKEN` are kept in the
+operating system's own store - Secret Service (GNOME Keyring, KWallet) on Linux, Keychain on macOS,
+Credential Manager on Windows - and `.env` holds `@keychain` in their place. The first run with a
+store that works moves them; a computer with none keeps them in `.env` (readable by you alone), as
+before. A `.env` copied to another computer does not carry them: ayis says which it could not read,
+and they are set again there. The AWS key stays in `~/.aws`, which the AWS CLI owns.
 
 ## What the box exposes
 

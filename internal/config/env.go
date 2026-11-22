@@ -22,7 +22,9 @@ const TagKey = "ayis:host"
 type Env struct {
 	vars   map[string]string
 	getenv Lookup
-	File   string // the settings file that was read, or would be written
+	File   string   // the settings file that was read, or would be written
+	vault  Vault    // where secrets are kept, when the OS has a store (vault.go)
+	locked []string // secrets the vault did not give back
 }
 
 // Defaults are the registry's defaults for the settings the ported commands
