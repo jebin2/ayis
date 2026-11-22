@@ -1,0 +1,297 @@
+# Production readiness plan
+
+Status: **proposed** - nothing here is started. Branch: `production-plan`.
+
+This plan takes Ayis from "works well for its author" to a codebase that strangers can install,
+trust with an AWS account, and that other people can change safely. It is not a rewrite and not
+a reshuffle of folders: every phase fixes a measured weakness, ships on its own, and ends with a
+check that can be run, not a feeling.
+
+---
+
+## 1. What "production-ready" means for Ayis
+
+Ayis is not a web service. It is three programs that run in three places and must agree:
+
+| Part | Where it runs | Size today |
+|---|---|---|
+| `ayis` CLI (Go) | the user's laptop | ~30,300 lines + ~16,000 lines of tests, 63 packages |
+| Desktop app (Electron) | the user's laptop | `app/renderer/app.js` is **one file of 8,678 lines**, 290 functions |
+| Cloud watchdog (Python Lambda) | the user's AWS account | `lambda/cloud_watchdog.py`, **one file of 1,312 lines** |
+| Box scripts (Bash) | the rented GPU machine | `host/` and `lib/bootstrap.d/`, ~40 scripts |
+
+So each of the twelve goals is defined here in terms that fit a single-user desktop tool that
+spends real money in someone else's AWS account. "Metrics" does not mean Prometheus; "tracing"
+does not mean Jaeger. Section 4 maps each goal to a check that proves it.
+
+**Non-goals.** No server of our own, no multi-tenant backend, no Kubernetes, no rewrite into a
+new framework, and no new paid AWS service unless its cost is discussed and agreed first.
+
+## 2. Baseline (measured 2026-11-22)
+
+Strengths to keep - these are already production-grade and the plan must not regress them:
+
+- The CLI is the single source of truth; the app only runs `ayis ... --json` and draws it.
+- A frozen JSON contract (`testdata/contract/contract.json`) between CLI and app.
+- Electron is hardened: `contextIsolation`, `sandbox`, no `nodeIntegration`, a CSP, navigation
+  and new windows denied.
+- Cost guards in four layers, now with hard limits; every AWS feature had its cost discussed.
+- 47 shell suites + Go tests run in CI on every push to main and every PR; `govulncheck` and
+  `npm audit` weekly; Dependabot on.
+- A settings registry (`internal/config/registry.go`) with defaults, bounds and labels.
+
+Weaknesses, with evidence:
+
+| # | Finding | Evidence |
+|---|---|---|
+| W1 | **Settings live per laptop, but the watchdog is shared.** Two laptops deploy the same Lambda with different values; the last to save wins. | Found live on 2026-11-22: laptop said 6 h and "phone alerts off", the deployed watchdog had 1 h and a topic. |
+| W2 | The renderer is one 8,678-line file. | `wc -l app/renderer/app.js` |
+| W3 | App tests mostly assert that text exists in the source, not behaviour. | `tests/app.sh`: 424 `grep`-style checks; DOM suites run only in CI. |
+| W4 | AWS access is re-implemented per command. | `DescribeInstances(` in 16 non-test files; 35 hand-written client interfaces. |
+| W5 | Uneven test coverage. | Total 65.2%; `cmd/ayis` 0%, `internal/box` 3.6%, `limitscmd` 3.6%, `laptop` 9.2%, `commands/watchdog` 16.4%. |
+| W6 | No linters for any language. | No golangci-lint, ESLint or Ruff config; only `gofmt`/`go vet`. |
+| W7 | CI does not run on branch pushes. | `test.yml` triggers: main, pull_request, manual. A branch was pushed red twice today. |
+| W8 | Nobody is told if the watchdog itself fails. | Lambda errors appear only in `ayis watchdog`; the CloudWatch alarm was removed on purpose. |
+| W9 | No way to follow one action across laptop → CLI → box → Lambda. | Logs are per program, with no shared id. |
+| W10 | Secrets at rest are plain text, and the ntfy topic is a bearer secret that now carries cost figures. | `.env`; `ntfy.sh/<topic>` readable by anyone who knows the topic. |
+| W11 | macOS and Windows builds are unsigned. | Release notes say so. |
+| W12 | Decisions are buried in prose; old plans sit next to live docs. | `docs/architecture.md` "Key decisions"; `go-plan.md`, `rename-ayis-plan.md`, `own-machine-plan.md` are finished work. |
+| W13 | The Lambda's tests are Python embedded in Bash heredocs. | `tests/hard-limits.sh`, `tests/lambda-watchdog.sh`. |
+| W14 | Repository clutter. | `stitch_design/` (mock-ups) and `ayis.md` tracked at the root. |
+
+## 3. Principles for every phase
+
+1. **Ship each phase on its own branch, green CI, then merge on request.** No big-bang branch.
+2. **Behaviour first.** A refactor starts by adding the test that pins today's behaviour.
+3. **Cost before code.** Any change to what runs in AWS states its monthly cost (even ₹0).
+4. **Measure, then optimise.** Performance work starts from a recorded number.
+5. **One owner per fact.** A setting, a price, an AWS lookup: defined once, imported everywhere.
+6. **A decision gets an ADR** in `docs/adr/` the day it is made.
+
+---
+
+## 4. The twelve goals, and how we will know each is met
+
+| Goal | Done when (each is checkable) | Phase |
+|---|---|---|
+| Well-defined architecture and structure | `docs/architecture.md` has a module map; an import-rule test fails the build if a package crosses a boundary (§P2) | P2, P10 |
+| Clean, modular, reusable code | No source file over 1,500 lines (renderer and Lambda included); one AWS lookup per concern; duplicate-code check in lint | P2, P3, P4 |
+| Separation of concerns, module boundaries | Layer rule enforced by test: `cmd` → `commands` → domain → `aws` adapters; domain never imports `commands`; renderer pages never call each other | P2, P3 |
+| Scalability, maintainability, extensibility | Adding a new cloud action or app page touches one module plus its test; shown by doing it once (the config sync in P1) | P1–P3 |
+| Error handling and resilience | Every AWS call has a deadline and the shared retry policy; errors are classified (yours to fix / try again / bug) and each class has a test; the watchdog's own failure reaches the user | P5 |
+| Security best practices | Threat model written; secret scan in CI; least-privilege IAM policy generated and documented; secrets in the OS keychain; releases checksummed and attested | P6 |
+| Testing and code-quality standards | Linters for Go, JS and Python block CI; coverage ≥ 75% overall and ≥ 60% for every package; renderer behaviour tested in a real DOM; DOM suites run locally too | P0, P3, P4 |
+| Observability: logs, metrics, tracing, health | A run id joins app, CLI, box and Lambda logs; a local rotated log file; the watchdog records each run's outcome; `ayis doctor` is one health check the app shows | P7 |
+| Performance and resource optimisation | Recorded budgets (e.g. `ayis status` p50 < 3 s, app first paint < 1 s, AppImage size) checked in CI | P8 |
+| Centralised configuration | One registry; settings that affect AWS live in AWS (SSM, free) so every laptop agrees; no raw `os.Getenv` outside `config` | P1 |
+| CI/CD and deployment readiness | CI on every branch push; release = tag → tests → build → checksums → provenance → draft; the watchdog version follows the app; a rollback runbook | P0, P9 |
+| Documentation and decisions | ADRs for the 15+ standing decisions; CONTRIBUTING, SECURITY, runbooks; finished plans archived | P10 |
+
+---
+
+## 5. Phases
+
+Order is by risk removed per effort. Sizes are rough: S ≈ a day, M ≈ 2–4 days, L ≈ a week+.
+
+### P0 - Guardrails first (S)
+
+So everything after is checked automatically.
+
+- Run `test.yml` on every branch push (fixes W7). Cost: free runner minutes on a public repo.
+- Add linters, starting in report-only mode, then blocking once clean (W6):
+  - Go: `golangci-lint` with `errcheck`, `govet`, `staticcheck`, `ineffassign`, `gocritic`,
+    `dupl`, `gocyclo` (threshold set from today's worst, lowered over time).
+  - JS: ESLint (flat config, `no-unused-vars`, `no-undef`, `eqeqeq`, `complexity`).
+  - Python: Ruff and `mypy --strict` on the Lambda.
+  - Shell: ShellCheck on `host/`, `lib/`, `tests/`.
+- Publish coverage in CI and set a floor at today's 65% that may only go up.
+- Create `docs/adr/` with a template and ADR-0001 "Record decisions as ADRs".
+- Move finished plans to `docs/archive/`; move `ayis.md` to `docs/cli.md`; move `stitch_design/`
+  to `docs/design/mockups/` or drop it (W14).
+
+**Exit:** CI runs on this branch; lint runs (report-only); coverage shows in the job summary.
+
+### P1 - One source of truth for settings (M) - fixes a live bug
+
+W1 is the only item here that is a **user-visible bug today**, so it comes first.
+
+- Split the registry into **local** settings (paths, this laptop's tools) and **account**
+  settings (budget, hour limits, alert topic, idle times, region, machine type).
+- Store account settings in SSM standard parameters under `/ayis/<host>/config/*` - free, already
+  used for the hour count. `ayis config set` writes there; every laptop reads from there; `.env`
+  keeps only local settings and a cache.
+- The watchdog is deployed from the account settings only, so two laptops can no longer undo
+  each other. One-time migration: on first run, push local values up if AWS has none, and say so.
+- Replace the 13 direct `os.Getenv` calls with the registry.
+- ADR: "Account settings live in the account".
+
+**Cost:** ₹0 (SSM standard parameters and their API calls are free).
+**Exit:** a test with two simulated laptops shows the second sees the first's change, and the
+watchdog's environment equals the account settings after either one deploys.
+
+### P2 - Architecture and module boundaries in the Go code (L)
+
+- Write the layer rule down and enforce it with a Go test that walks imports:
+  `cmd/ayis` → `internal/commands/*` → domain packages (`box`, `limits`, `library`, `provision`,
+  `pricing`, …) → `internal/aws/*` adapters. Domain packages never import `commands`; nothing
+  but adapters imports the AWS SDK service packages.
+- Introduce `internal/aws/ec2box` (find the box by tag, describe, tag, start, stop) and replace
+  the 16 copies (W4). Same for SSM marks, budgets and IAM reads. One fake per adapter in
+  `internal/testfixture`, replacing per-package fakes.
+- Split `internal/commands/boxcmd` (5,800 lines) by verb into `open`, `stop`, `destroy`, `disk`,
+  `restore` packages sharing a small `boxcore`.
+- Make `cmd/ayis/main.go` a table of commands built from `internal/contract`, tested, instead of
+  a 445-line switch (0% coverage today).
+- Raise the five weakest packages (W5) to ≥ 60% while touching them.
+
+**Exit:** import-rule test passes; `grep DescribeInstances(` finds only the adapter; no Go file
+over 1,500 lines; coverage ≥ 70%.
+
+### P3 - The desktop app as modules (L)
+
+- Split `app.js` into ES modules, no framework and no bundler (Electron loads
+  `<script type="module">`): `core/` (runner, state, format, dialogs), and one module per page:
+  home, machine, games, safety, spending, settings, onboarding, logs.
+- Pages talk only through `core/state` and events, never by calling each other.
+- Replace source-grep tests (W3) with behaviour tests: feed recorded `ayis --json` outputs into
+  the real DOM and assert what is drawn. Keep the handful of greps that guard a policy (e.g. "no
+  interval timers that poll AWS").
+- Make the DOM suites run locally: pin a headless Chromium via Playwright in `app/` dev
+  dependencies, so they no longer need CI (today they hang under the local browser shim).
+- ESLint blocking; no module over 1,500 lines.
+
+**Exit:** `app.js` gone; every page has DOM tests that pass locally and in CI; the packaged
+AppImage passes `tests/app-packaged.sh`.
+
+### P4 - The watchdog as a package (M)
+
+- Turn `lambda/cloud_watchdog.py` into `lambda/ayis_watchdog/` with modules `limits`, `idle`,
+  `archive`, `notify`, `aws` and a thin `handler`; still deployed as one zip, so the
+  fingerprint logic in `internal/watchdog` keeps working.
+- Move tests from Bash heredocs to `pytest` with shared fakes (W13), keeping every existing case.
+- Ruff and `mypy --strict` blocking.
+
+**Cost:** ₹0 - same Lambda, same schedule.
+**Exit:** all 238 existing Lambda checks pass under pytest; no module over 500 lines.
+
+### P5 - Errors and resilience (M)
+
+- One retry and timeout policy in `internal/awscfg` (adaptive retries, per-call deadlines);
+  no AWS call without a context deadline.
+- Classify errors in one place - *yours to fix* (credentials, quota, settings), *try again*
+  (throttling, capacity, network), *bug* - and render each the same way in CLI and app.
+- Make every write resumable or idempotent, and test it by cancelling mid-way: `init`, `destroy`,
+  `library` push/pull, `limits arm`.
+- **Watchdog dead-man signal (W8):** the watchdog writes its last good run to SSM (free); the app
+  and `ayis status` warn when it is older than 15 minutes, and the box's idle watchdog sends an
+  ntfy message if it sees the same. No CloudWatch alarm (ADR: it was removed on purpose).
+
+**Cost:** ₹0.
+**Exit:** fault-injection tests for throttling, timeout and mid-write cancel pass; a disabled
+watchdog shows a warning in the app within 15 minutes.
+
+### P6 - Security (M)
+
+- Write `docs/security/threat-model.md`: assets (AWS keys, Tailscale keys, Steam login token,
+  saved games, the ntfy topic), who can reach each, and the control for each.
+- **Least privilege:** generate the exact IAM policy `ayis` needs (`ayis aws policy`), document
+  creating a user with only that, and check it in CI against the actions the code calls.
+- **Secrets at rest (W10):** keep secrets in the OS keychain (Secret Service on Linux, Keychain
+  on macOS, Credential Manager on Windows), `.env` holds references only; migrate on first run.
+- **ntfy:** support an access token or a self-hosted server; warn in the app that a public
+  topic is readable by anyone who knows it. ADR on the default.
+- CI: secret scanning (gitleaks) on every push, and a test that no tracked file contains a
+  personal email or Steam id (the PII lesson of 2026-11-20).
+- Releases: SHA-256 checksums and GitHub build provenance attestations (free).
+- **Signing (W11)** is a cost decision for you: Apple Developer ID is about $99 a year; a
+  Windows code-signing certificate roughly $200–400 a year. Until then, the README keeps saying
+  "unsigned".
+- `SECURITY.md` with how to report a vulnerability.
+
+**Exit:** threat model reviewed; gitleaks and the PII test block CI; a fresh IAM user with only
+the generated policy completes `init → open → destroy` in a live test.
+
+### P7 - Observability (M)
+
+What each term means here:
+
+- **Logs:** CLI and app write a rotated local log (`~/.local/state/ayis/ayis.log`, 5 × 5 MB);
+  the Lambda logs one JSON line per decision. A secret never reaches a log - tested.
+- **Tracing:** every user action gets a run id. The app passes it to the CLI; the CLI to the box
+  (tag and env) and to the Lambda (instance tag); every log line carries it. `ayis logs --run
+  <id>` gathers one action's lines from all four places.
+- **Metrics:** no paid metric service. The watchdog records each run's outcome, hours counted and
+  decisions to SSM (free, overwritten); the app's Safety page shows "watchdog: last ran 2 min
+  ago, ok". Build and boot times are already measured by `ayis init`; keep them.
+- **Health checks:** `ayis doctor --json` combines `check`, `watchdog`, `limits`, credentials
+  and the box's own health; the app's header shows its worst result.
+
+**Cost:** ₹0 (CloudWatch Logs for the Lambda stays well inside the free 5 GB).
+**Exit:** one run id followed end to end in a live test; `ayis doctor` red when the watchdog,
+keys or Tailscale are broken (fault-injection tests).
+
+### P8 - Performance and resources (S–M)
+
+- Record today's numbers first: `ayis status` wall time, app cold start to first paint, memory
+  of the app after an hour, AppImage size, box boot-to-playable time.
+- Set budgets from those numbers and check the cheap ones in CI (CLI timings against fakes,
+  bundle size).
+- Likely work: cache read-only AWS answers per refresh, read fewer things at app start, prune
+  the AppImage (123 MB today) of unused Electron locales.
+
+**Exit:** a `docs/performance.md` table of budget vs. measured, with CI enforcing the
+deterministic ones.
+
+### P9 - CI/CD and deployment (S–M)
+
+- Pipelines: branch push → lint + tests; PR → same plus DOM suites; tag → tests → builds for
+  Linux, macOS and Windows → checksums → provenance → draft release.
+- Generate release notes from commits since the last tag.
+- The app checks that the deployed watchdog matches its version and offers to update it (the
+  fingerprint already exists); a broken watchdog deploy can be rolled back with one command.
+- `docs/runbooks/` for release, rollback, watchdog redeploy, and "AWS account suspended".
+
+**Exit:** a release cut entirely by pushing a tag, with nothing done by hand but pressing
+"Publish".
+
+### P10 - Documentation and decisions (S, ongoing)
+
+- Backfill ADRs for the standing decisions, among them: Ubuntu over NixOS; Proton not mirrored;
+  CloudWatch alarm removed; new game at build dropped; the box found by tag, not by `.env`; hard
+  limits enforced by the watchdog; account settings in SSM (P1).
+- `docs/architecture.md` gains the module map and the layer rule from P2/P3, with one diagram.
+- `CONTRIBUTING.md`: set-up, how to run every test locally, commit style, how to cut a release.
+- README stays short and links to the rest.
+
+**Exit:** every "Key decisions" bullet in `architecture.md` links to an ADR.
+
+---
+
+## 6. Sequence and milestones
+
+| Milestone | Phases | What you can say afterwards |
+|---|---|---|
+| M1 - Safe to change | P0, P1 | Every push is checked; two laptops can no longer fight over the watchdog. |
+| M2 - Clean structure | P2, P3, P4 | No giant files; boundaries enforced by tests; the app is tested by behaviour. |
+| M3 - Trustworthy | P5, P6, P7 | Failures are classified and visible; least privilege; one action traceable end to end. |
+| M4 - Releasable | P8, P9, P10 | Measured performance budgets; tag-to-draft release; decisions recorded. |
+
+Reddit beta testers can start at any time; M1 should land before the beta grows past a few
+people, because W1 will bite anyone with two computers.
+
+## 7. Decisions needed from you before starting
+
+1. **Account settings in SSM (P1).** Recommended; free. Changes where settings live.
+2. **Code signing (P6).** About $99/yr (Apple) plus $200–400/yr (Windows), or stay unsigned.
+3. **ntfy default (P6).** Keep public ntfy.sh with a warning, require a token, or self-host.
+4. **Playwright's Chromium as a dev dependency (P3).** About 150 MB on developer machines; no
+   effect on the shipped app.
+5. **Strictness of the coverage floor.** Proposed: 75% overall, 60% per package by M2.
+
+## 8. Risks
+
+- **Refactors breaking a flow that only AWS exercises.** Mitigation: each phase ends with the
+  live `init → open → destroy` run (one session, about ₹20–60), stated before it is spent.
+- **Renderer split regressions.** Mitigation: DOM behaviour tests land *before* the split.
+- **Settings migration (P1) losing a value.** Mitigation: migration is read-compare-write, prints
+  what moved, and keeps `.env` as a fallback for one release.
