@@ -31,6 +31,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
+
+	"github.com/jebin2/ayis/internal/ec2find"
 )
 
 // The tags and names the watchdog reads. They must match lambda/cloud_watchdog.py.
@@ -212,17 +214,7 @@ func Deadline(launched time.Time, tags []ec2types.Tag, maxHours int) time.Time {
 
 // Machines are this host's machines that are up.
 func Machines(ctx context.Context, c EC2, host string) ([]ec2types.Instance, error) {
-	o, err := c.DescribeInstances(ctx, &ec2.DescribeInstancesInput{Filters: []ec2types.Filter{
-		{Name: aws.String("tag:Name"), Values: []string{host}},
-		{Name: aws.String("instance-state-name"), Values: []string{"pending", "running"}}}})
-	if err != nil {
-		return nil, err
-	}
-	var out []ec2types.Instance
-	for _, r := range o.Reservations {
-		out = append(out, r.Instances...)
-	}
-	return out, nil
+	return ec2find.Instances(ctx, c, host, ec2find.Up)
 }
 
 // Sessions is each running machine's session, when a session limit is set.

@@ -14,6 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+
+	"github.com/jebin2/ayis/internal/ec2find"
 )
 
 // EC2 is what a destroy uses.
@@ -59,15 +61,13 @@ func add(list *[]string, seen map[string]bool, id string) {
 func Read(ctx context.Context, c EC2, host, tagKey string) (Plan, error) {
 	var p Plan
 	seen := map[string]bool{}
-	inst, err := c.DescribeInstances(ctx, &ec2.DescribeInstancesInput{Filters: []ec2types.Filter{
-		tagFilter("Name", host), {Name: aws.String("instance-state-name"), Values: []string{"pending", "running", "stopping", "stopped"}}}})
+	// Every page: a plan made from the first page alone would leave the rest billing.
+	inst, err := ec2find.Instances(ctx, c, host, ec2find.Kept)
 	if err != nil {
 		return p, err
 	}
-	for _, r := range inst.Reservations {
-		for _, i := range r.Instances {
-			add(&p.Instances, seen, aws.ToString(i.InstanceId))
-		}
+	for _, i := range inst {
+		add(&p.Instances, seen, aws.ToString(i.InstanceId))
 	}
 	mine := map[string]bool{}
 	for _, f := range []ec2types.Filter{tagFilter(tagKey, host), tagFilter("Name", host+"-image")} {

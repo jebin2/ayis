@@ -15,6 +15,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/smithy-go"
+
+	"github.com/jebin2/ayis/internal/ec2find"
 )
 
 // Known is a value and whether it could be read.
@@ -84,39 +86,22 @@ func code(err error) string {
 }
 
 func (g *Gatherer) instance(ctx context.Context) Known[*Instance] {
-	var found *Instance
-	var token *string
-	for {
-		out, err := g.EC2.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
-			Filters: []types.Filter{
-				filter("tag:Name", g.Host),
-				filter("instance-state-name", "pending", "running", "stopping", "stopped"),
-			},
-			NextToken: token,
-		})
-		if err != nil {
-			return Known[*Instance]{}
-		}
-		for _, r := range out.Reservations {
-			for _, i := range r.Instances {
-				if found == nil {
-					in := &Instance{ID: aws.ToString(i.InstanceId), Type: string(i.InstanceType),
-						Lifecycle: string(i.InstanceLifecycle)}
-					if i.State != nil {
-						in.State = string(i.State.Name)
-					}
-					if i.Placement != nil {
-						in.AZ = aws.ToString(i.Placement.AvailabilityZone)
-					}
-					found = in
-				}
-			}
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			return ok(found)
-		}
-		token = out.NextToken
+	all, err := ec2find.Instances(ctx, g.EC2, g.Host, ec2find.Kept)
+	if err != nil {
+		return Known[*Instance]{}
 	}
+	if len(all) == 0 {
+		return ok[*Instance](nil)
+	}
+	i := all[0]
+	in := &Instance{ID: aws.ToString(i.InstanceId), Type: string(i.InstanceType), Lifecycle: string(i.InstanceLifecycle)}
+	if i.State != nil {
+		in.State = string(i.State.Name)
+	}
+	if i.Placement != nil {
+		in.AZ = aws.ToString(i.Placement.AvailabilityZone)
+	}
+	return ok(in)
 }
 
 func (g *Gatherer) volumes(ctx context.Context, filters []types.Filter) ([]Volume, error) {

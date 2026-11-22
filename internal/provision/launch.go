@@ -16,6 +16,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 
 	"github.com/jebin2/ayis/internal/sshkey"
+
+	"github.com/jebin2/ayis/internal/ec2find"
 )
 
 // EC2 is what making and launching the box uses.
@@ -143,18 +145,11 @@ func (p Provisioner) tag(a Params) string {
 // Existing is the instance already there for this host, if one is: running,
 // pending, stopping or stopped.
 func (p Provisioner) Existing(ctx context.Context, host string) (string, error) {
-	o, err := p.EC2.DescribeInstances(ctx, &ec2.DescribeInstancesInput{Filters: []ec2types.Filter{
-		{Name: aws.String("tag:Name"), Values: []string{host}},
-		{Name: aws.String("instance-state-name"), Values: []string{"pending", "running", "stopping", "stopped"}}}})
-	if err != nil {
+	found, err := ec2find.Instances(ctx, p.EC2, host, ec2find.Kept)
+	if err != nil || len(found) == 0 {
 		return "", err
 	}
-	for _, r := range o.Reservations {
-		for _, i := range r.Instances {
-			return aws.ToString(i.InstanceId), nil
-		}
-	}
-	return "", nil
+	return aws.ToString(found[0].InstanceId), nil
 }
 
 // Run makes sure there is exactly one box, and launches one only when there is

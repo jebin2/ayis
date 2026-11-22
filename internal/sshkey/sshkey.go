@@ -23,6 +23,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/smithy-go"
+
+	"github.com/jebin2/ayis/internal/ec2find"
 )
 
 // EC2 is the two calls the comparison needs.
@@ -119,19 +121,8 @@ func Words(s State) string {
 // BoxExists is whether a box of that name is up or stopped: replacing the pair
 // would not let this laptop log in to it.
 func BoxExists(ctx context.Context, c EC2, name string) bool {
-	o, err := c.DescribeInstances(ctx, &ec2.DescribeInstancesInput{Filters: []types.Filter{
-		{Name: aws.String("tag:Name"), Values: []string{name}},
-		{Name: aws.String("instance-state-name"), Values: []string{"pending", "running", "stopping", "stopped"}},
-	}})
-	if err != nil {
-		return false
-	}
-	for _, r := range o.Reservations {
-		if len(r.Instances) > 0 {
-			return true
-		}
-	}
-	return false
+	found, err := ec2find.Instances(ctx, c, name, ec2find.Kept)
+	return err == nil && len(found) > 0
 }
 
 // KeyAdmin is what making a key pair uses.

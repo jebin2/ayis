@@ -7,7 +7,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/budgets"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
@@ -15,6 +14,8 @@ import (
 
 	"github.com/jebin2/ayis/internal/awscfg"
 	wd "github.com/jebin2/ayis/internal/watchdog"
+
+	"github.com/jebin2/ayis/internal/ec2find"
 )
 
 // AWS is the real Cloud.
@@ -76,32 +77,19 @@ func (a *AWS) Machines(ctx context.Context, region string) ([]Machine, error) {
 	if err != nil {
 		return nil, err
 	}
-	var out []Machine
-	var token *string
-	cl := ec2.NewFromConfig(c)
-	for {
-		o, err := cl.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
-			Filters: []ec2types.Filter{
-				{Name: aws.String("tag:Name"), Values: []string{a.Host}},
-				{Name: aws.String("instance-state-name"), Values: []string{"pending", "running", "stopping", "stopped"}}},
-			NextToken: token})
-		if err != nil {
-			return nil, err
-		}
-		for _, r := range o.Reservations {
-			for _, i := range r.Instances {
-				m := Machine{ID: aws.ToString(i.InstanceId), Type: string(i.InstanceType)}
-				if i.State != nil {
-					m.State = string(i.State.Name)
-				}
-				out = append(out, m)
-			}
-		}
-		if o.NextToken == nil || *o.NextToken == "" {
-			return out, nil
-		}
-		token = o.NextToken
+	found, err := ec2find.Instances(ctx, ec2.NewFromConfig(c), a.Host, ec2find.Kept)
+	if err != nil {
+		return nil, err
 	}
+	out := make([]Machine, 0, len(found))
+	for _, i := range found {
+		m := Machine{ID: aws.ToString(i.InstanceId), Type: string(i.InstanceType)}
+		if i.State != nil {
+			m.State = string(i.State.Name)
+		}
+		out = append(out, m)
+	}
+	return out, nil
 }
 
 func (a *AWS) Watchdog(ctx context.Context, region string) bool {

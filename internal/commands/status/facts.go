@@ -36,6 +36,8 @@ import (
 	"github.com/jebin2/ayis/internal/local"
 	"github.com/jebin2/ayis/internal/session"
 	"github.com/jebin2/ayis/internal/watchdog"
+
+	"github.com/jebin2/ayis/internal/ec2find"
 )
 
 // Known is a value and whether it could be read; the same type cost uses.
@@ -309,41 +311,39 @@ func (g *Gatherer) quota(ctx context.Context, quotaCode string) Known[float64] {
 
 // box finds the machine by its Name tag rather than trusting .env.
 func (g *Gatherer) box(ctx context.Context) Known[*Box] {
-	r, err := g.EC2.DescribeInstances(ctx, &ec2.DescribeInstancesInput{Filters: []ec2types.Filter{
-		f("tag:Name", g.Host), f("instance-state-name", "pending", "running", "stopping", "stopped")}})
+	found, err := ec2find.Instances(ctx, g.EC2, g.Host, ec2find.Kept)
 	if err != nil {
 		return Known[*Box]{}
 	}
-	for _, res := range r.Reservations {
-		for _, i := range res.Instances {
-			b := &Box{ID: aws.ToString(i.InstanceId), Type: string(i.InstanceType), PublicIP: aws.ToString(i.PublicIpAddress),
-				Lifecycle: "on-demand"}
-			if i.State != nil {
-				b.State = string(i.State.Name)
-			}
-			if i.LaunchTime != nil {
-				b.Launched = *i.LaunchTime
-				if g.SessionHours > 0 {
-					b.SessionEnds = limits.Deadline(*i.LaunchTime, i.Tags, g.SessionHours)
-				}
-			}
-			if i.InstanceLifecycle == ec2types.InstanceLifecycleTypeSpot {
-				b.Lifecycle = "spot"
-			}
-			if i.Placement != nil {
-				b.AZ = aws.ToString(i.Placement.AvailabilityZone)
-			}
-			if len(i.BlockDeviceMappings) > 0 && i.BlockDeviceMappings[0].Ebs != nil {
-				if v, err := g.EC2.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{
-					VolumeIds: []string{aws.ToString(i.BlockDeviceMappings[0].Ebs.VolumeId)}}); err == nil && len(v.Volumes) > 0 {
-					b.DiskGB = ok(int(aws.ToInt32(v.Volumes[0].Size)))
-				}
-			}
-			b.Built = exists(filepath.Join(g.CacheDir, "built-"+b.ID))
-			return ok(b)
+	if len(found) == 0 {
+		return ok[*Box](nil)
+	}
+	i := found[0]
+	b := &Box{ID: aws.ToString(i.InstanceId), Type: string(i.InstanceType), PublicIP: aws.ToString(i.PublicIpAddress),
+		Lifecycle: "on-demand"}
+	if i.State != nil {
+		b.State = string(i.State.Name)
+	}
+	if i.LaunchTime != nil {
+		b.Launched = *i.LaunchTime
+		if g.SessionHours > 0 {
+			b.SessionEnds = limits.Deadline(*i.LaunchTime, i.Tags, g.SessionHours)
 		}
 	}
-	return ok[*Box](nil)
+	if i.InstanceLifecycle == ec2types.InstanceLifecycleTypeSpot {
+		b.Lifecycle = "spot"
+	}
+	if i.Placement != nil {
+		b.AZ = aws.ToString(i.Placement.AvailabilityZone)
+	}
+	if len(i.BlockDeviceMappings) > 0 && i.BlockDeviceMappings[0].Ebs != nil {
+		if v, err := g.EC2.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{
+			VolumeIds: []string{aws.ToString(i.BlockDeviceMappings[0].Ebs.VolumeId)}}); err == nil && len(v.Volumes) > 0 {
+			b.DiskGB = ok(int(aws.ToInt32(v.Volumes[0].Size)))
+		}
+	}
+	b.Built = exists(filepath.Join(g.CacheDir, "built-"+b.ID))
+	return ok(b)
 }
 
 func exists(p string) bool { _, err := os.Stat(p); return err == nil }
