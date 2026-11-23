@@ -235,13 +235,44 @@ func (d Deps) restoreGames(ctx context.Context) int {
 		}
 		if end {
 			if failed > 0 {
-				return d.die(fmt.Sprintf("%d of %d game(s) did not come back whole - most often the disk had no room. Nothing was removed; the machine is still running", failed, len(rows)))
+				why := d.whyNotRestored(ctx, unit)
+				return d.die(fmt.Sprintf("%d of %d game(s) did not come back whole%s. Nothing was removed; the machine is still running", failed, len(rows), why))
 			}
 			d.Out.Echo("the games are back")
 			return 0
 		}
 		d.sleep(4 * time.Second)
 	}
+}
+
+// whyNotRestored shows the copy's own reasons for leaving a game out - the
+// SKIPPING, FAILED and INCOMPLETE lines and each disk's budget - and returns the
+// first reason for the error, as ": <reason>". The probe only ever sees the
+// copy's LAST line, which for a skipped game is "skipped - see above", and
+// "above" was on the machine. A machine that cannot be asked returns "".
+func (d Deps) whyNotRestored(ctx context.Context, unit string) string {
+	out, err := d.Box.SSH(ctx, "sudo -n journalctl -u "+unit+" -o cat --no-pager 2>/dev/null"+
+		" | grep -E 'SKIPPING|FAILED|INCOMPLETE|disk budget|not a mountpoint|error:' | tail -n 20", nil)
+	if err != nil {
+		return ""
+	}
+	first := ""
+	for _, l := range strings.Split(string(out), "\n") {
+		l = strings.TrimSpace(l)
+		if l == "" {
+			continue
+		}
+		l = strings.TrimSpace(strings.TrimPrefix(l[strings.Index(l, " ")+1:], "ayis-library:"))
+		d.Out.Echo("  copy says: " + l)
+		if first == "" && (strings.Contains(l, "SKIPPING") || strings.Contains(l, "INCOMPLETE") ||
+			strings.Contains(l, "FAILED") || strings.Contains(l, "error:")) {
+			first = l
+		}
+	}
+	if first == "" {
+		return ""
+	}
+	return ": " + first
 }
 
 // thereScript prints "H <appid> <where> <path> <bytes>" for every game Steam has

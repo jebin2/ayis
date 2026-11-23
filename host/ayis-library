@@ -398,7 +398,7 @@ for a in sel: print("%s\t%s\t%s\t%s" % (a["appid"], a.get("installdir",""), a.ge
     # impossible. Either way the honest answer is that the game is not there.
     if ! "$S5" cp "$S3/steamapps/appmanifest_$id.acf" "$LIB/steamapps/" >/dev/null 2>&1; then
       log "  SKIPPING $name - no manifest in the archive, so it was never fully pushed"
-      skipped=$((skipped+1)); used=$(( used - want_bytes ))
+      skipped=$((skipped+1)); used=$(( used - need ))
       continue
     fi
     local src dst
@@ -444,7 +444,7 @@ for a in sel: print("%s\t%s\t%s\t%s" % (a["appid"], a.get("installdir",""), a.ge
   "$S5" cp "$S3/steamapps/libraryfolder.vdf" "$LIB/steamapps/" >/dev/null 2>&1 || true
   dt=$(( $(date +%s) - t0 )); (( dt > 0 )) || dt=1
   log "restored $total game(s) in ${dt}s"
-  (( skipped )) && log "$skipped game(s) skipped for space - see above"
+  (( skipped )) && log "$skipped game(s) skipped - the SKIPPING lines above say why"
   if (( incomplete )); then
     # No marker: a partial local copy must never be pushed over a complete
     # archive. Steam will repair the install by downloading the remainder; once

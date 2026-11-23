@@ -98,3 +98,38 @@ func TestWhatIsAlreadyThereIsNotCopiedAgain(t *testing.T) {
 		t.Errorf("kept %v\n%s%s", ids, r.o, r.w)
 	}
 }
+
+// A game the copy left out fails with the copy's own reason, read from the
+// machine, not a guess: the probe only ever saw "skipped - see above", and the
+// line above was on the machine.
+func TestAFailedRestoreSaysTheCopysReason(t *testing.T) {
+	r := newRig(t, "")
+	r.d.Games = "2344520:172930613336"
+	r.d.ExtraApps = "2344520"
+	prev := r.r.Hook
+	r.r.Hook = func(line string) (bool, string, error) {
+		switch {
+		case strings.Contains(line, "systemctl show -p ActiveState"):
+			return true, "G 2344520 0\nU inactive dead\nJ 1 game(s) skipped - the SKIPPING lines above say why\n", nil
+		case strings.Contains(line, "journalctl -u ayis-restore-play-") && strings.Contains(line, "SKIPPING"):
+			return true, "2026-11-22T17:50:37+00:00 ayis-library: disk budget 176GB at /scratch2/steam (196GB free, 20GB reserved)\n" +
+				"2026-11-22T17:50:37+00:00 ayis-library: SKIPPING Diablo IV (2344520): needs 162GB more, only 96GB left\n", nil
+		}
+		return prev(line)
+	}
+	if code := r.d.restoreGames(context.Background()); code == 0 {
+		t.Fatal("a game left out is a failure")
+	}
+	all := r.o.String() + r.w.String()
+	for _, want := range []string{
+		"copy says: disk budget 176GB at /scratch2/steam",
+		"did not come back whole: SKIPPING Diablo IV (2344520): needs 162GB more, only 96GB left",
+	} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing %q in\n%s", want, all)
+		}
+	}
+	if strings.Contains(all, "most often") {
+		t.Errorf("still guessing:\n%s", all)
+	}
+}
