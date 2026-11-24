@@ -32,7 +32,22 @@
 #   steam/meta/symlinks-<id>.tsv   S3 cannot store a symlink; see restore_symlinks
 set -uo pipefail
 
-[[ -r /etc/ayis-library.conf ]] && . /etc/ayis-library.conf
+# The machine's settings, from its build - but what the CALLER set wins. The
+# laptop's restore says which games go on the added disk (AYIS_EXTRA_APPS) for
+# this one run, and the file, written at build when there was no added disk,
+# says AYIS_EXTRA_APPS= - read last, it emptied the list, and a 162 GB game
+# meant for the 196 GB added disk was measured against the 115 GB drive and
+# skipped.
+CONF="${AYIS_CONF:-/etc/ayis-library.conf}"
+if [[ -r $CONF ]]; then
+  declare -A _caller=()
+  while IFS='=' read -r _k _; do
+    [[ $_k =~ ^[A-Z_][A-Z0-9_]*$ && -n ${!_k+x} ]] && _caller[$_k]=${!_k}
+  done < "$CONF"
+  . "$CONF"
+  for _k in "${!_caller[@]}"; do printf -v "$_k" '%s' "${_caller[$_k]}"; done
+  unset _caller _k
+fi
 
 LIB="${AYIS_LIB_DIR:-/scratch/steam}"
 BUCKET="${AYIS_S3_BUCKET:-}"

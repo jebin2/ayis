@@ -414,4 +414,18 @@ contains "it says so and skips"   "$out" "that is not mounted"
 lacks    "nothing is written to the root disk" "$(cat "$T/s5.log")" "$T/extra/steam/steamapps/common"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$T/bin/mountpoint"
 
+echo "22. the machine's settings file does not undo what the restore was told"
+# On a real machine /etc/ayis-library.conf is written at build and says
+# AYIS_EXTRA_APPS= (no added disk then). The laptop's restore exports the list
+# for this run; the file, read after, used to empty it.
+rm -rf "$T/scratch/steam/steamapps/"* "$T/extra"; mkdir -p "$T/extra/steam"
+printf 'AYIS_S3_BUCKET=b\nAYIS_EXTRA_APPS=\nAYIS_EXTRA_LIB=/scratch2/steam\nAYIS_RESERVE_GB=20\n' > "$T/conf"
+out=$(AYIS_CONF="$T/conf" AYIS_EXTRA_APPS=2358720 AYIS_EXTRA_LIB="$T/extra/steam" run pull --apps 2358720)
+contains "the game still goes on the added disk" "$(cat "$T/s5.log")" "$T/extra/steam/steamapps/common/BlackMythWukong/"
+lacks    "  not on the drive"                    "$(cat "$T/s5.log")" "$T/scratch/steam/steamapps/common/BlackMythWukong/"
+printf 'AYIS_EXTRA_APPS=2358720\n' > "$T/conf"
+rm -rf "$T/extra/steam/steamapps"
+out=$(AYIS_CONF="$T/conf" AYIS_EXTRA_LIB="$T/extra/steam" run pull --apps 2358720)
+contains "and the file's own list is used when the caller has none" "$(cat "$T/s5.log")" "$T/extra/steam/steamapps/common/BlackMythWukong/"
+
 echo; echo "passed $pass, failed $fail"; [[ $fail -eq 0 ]]
