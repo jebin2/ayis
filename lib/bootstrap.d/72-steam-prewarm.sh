@@ -311,9 +311,27 @@ if [[ -z ${AYIS_EARLY:-} ]]; then
   done
 fi
 
+# The client's build number, from the manifest of what is installed: logged before
+# and after, so the log says whether the update ran.
+client_version() {
+  sed -n 's/.*"version"[[:space:]]*"\([0-9]*\)".*/\1/p' \
+    "$HOME/.local/share/Steam/package/steam_client_ubuntu12.manifest" 2>/dev/null | head -1
+}
+
 phase "unpacking client and downloading update"
+v=$(client_version); echo "client before: ${v:-none}" >>"$LOG"
 attempt=0
-while (( attempt < 3 )) && ! client_installed; do
+# At least ONE pass, even with the client already there. A client unpacked from
+# the archive (steam-client-fetch) is installed before Steam ever runs, so a loop
+# that ran only while it was missing never updated it: the box kept the archive's
+# client - weeks old by the end of a month - and Proton Experimental, which
+# updates itself, called into it with calls it did not know ("Unknown IPC call",
+# then an access violation in steamclient_init_registry), and every game closed
+# two seconds after Play. Steam updates itself on this start and the pass waits
+# for it to settle like any other. Only in the run during the build (AYIS_EARLY):
+# the run after the reboot follows it by minutes and would only hold up the box.
+force=0; [[ -n ${AYIS_EARLY:-} ]] && force=1
+while (( attempt < 3 )) && { (( attempt == 0 && force )) || ! client_installed; }; do
   attempt=$(( attempt + 1 ))
   "$STEAM" +quit >>"$LOG" 2>&1 &
   SPID=$!
@@ -340,6 +358,8 @@ while (( attempt < 3 )) && ! client_installed; do
   echo "attempt $attempt: settled at ${prev}MB after ${waited}s; installed: $(client_installed && echo yes || echo no)" >>"$LOG"
   client_installed || sleep 10
 done
+
+v=$(client_version); echo "client after: ${v:-none}" >>"$LOG"
 
 # Only claim success if the client is actually there - otherwise leave the
 # marker unset so the next boot tries again.

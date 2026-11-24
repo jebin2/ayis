@@ -43,4 +43,15 @@ plan=$(cat internal/provision/stages.go)
 contains "it starts once Steam is installed and set up" "$plan" '{Name: "steam-update", File: "73-steam-update.sh", Needs: []string{"steam-setup", "steam-client"}'
 contains "  and the last stage waits for it"      "$plan" '"library", "steam-update", "autologin"'
 
+echo "5. a client that is already there - unpacked from the archive - is still updated, once, in the build"
+# The loop used to run only while the client was missing, so an archived client
+# was never updated and Proton Experimental crashed into it on every game.
+contains "the build's run forces one pass"          "$mod" 'force=0; [[ -n ${AYIS_EARLY:-} ]] && force=1'
+contains "  which runs even with the client installed" "$mod" '(( attempt == 0 && force )) || ! client_installed'
+lacks    "  the old only-when-missing loop is gone"  "$mod" 'while (( attempt < 3 )) && ! client_installed; do'
+contains "the log says the client before"           "$mod" 'echo "client before: ${v:-none}"'
+contains "  and after"                              "$mod" 'echo "client after: ${v:-none}"'
+wf=$(cat .github/workflows/steam-client.yml)
+contains "the archive is rebuilt every week, not every month" "$wf" "cron: '17 3 * * 1'"
+
 echo; echo "steam-early: $pass passed, $fail failed"; (( fail == 0 ))

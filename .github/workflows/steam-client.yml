@@ -3,8 +3,9 @@
 # 5 MB/s). The archive is the client's own programs and update packages, with
 # nothing that belongs to a person or a machine in it (steam-client-pack.sh).
 #
-# It is rebuilt every month, because Steam updates itself and an old archive only
-# makes a new box download the difference. It is published as the assets of one
+# It is rebuilt every week. Steam updates itself, and the build runs it once to
+# do so, but a client a month behind is a client Proton Experimental (which
+# updates itself daily) can crash into before that update lands. It is published as the assets of one
 # release, `steam-client`, which is overwritten each time and is not the app's
 # "latest" release. A box checks the archive against its fingerprint and uses
 # Valve's own download if the archive is missing or does not match.
@@ -20,7 +21,7 @@ on:
       - '.github/scripts/steam-client-*.sh'
   schedule:
     # Scheduled runs only start from the default branch.
-    - cron: '17 3 1 * *'
+    - cron: '17 3 * * 1'   # Mondays
   workflow_dispatch:
     inputs:
       publish:

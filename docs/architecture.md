@@ -282,7 +282,7 @@ stage waits for everything, then reboots the machine into the desktop.
 about 5 MB/s from Mumbai and was the longest step of a build. The `Steam client archive` workflow
 (`.github/workflows/steam-client.yml`) installs Steam on a clean runner, lets it update itself, packs the client
 (`.github/scripts/steam-client-pack.sh`: its programs and update packages, nothing of a person's or a machine's -
-no login, config, logs, games or caches) and publishes it monthly as the assets of the `steam-client` release,
+no login, config, logs, games or caches) and publishes it weekly as the assets of the `steam-client` release,
 with its sha256. A new box's `steam-client` stage fetches it at the very start (`host/steam-client-fetch`), checks
 the fingerprint and that nothing in it leaves its own folder, and unpacks it; Steam then only downloads what
 changed since. With no archive, or one that does not match, it says so and the box downloads from Valve as it
